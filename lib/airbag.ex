@@ -1,0 +1,2 @@
+defmodule Airbag do
+end
