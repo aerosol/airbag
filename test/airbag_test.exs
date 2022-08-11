@@ -32,6 +32,9 @@ defmodule AirbagTest do
       )
 
     assert buffer.hash_by == (&IO.inspect/1)
+    assert buffer.partitions == 2
+    # FIXME: values less than 1500 are practically unusable
+    assert buffer.total_memory_threshold == 100
   end
 
   test "allows to initialise >1 buffers" do
