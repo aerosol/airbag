@@ -6,11 +6,14 @@ defmodule Airbag.Buffer do
   # TODO: telemetry integration for watermarks
   # TODO: test distributed_counters impact on ets:size
 
+  @default_hash_by &Function.identity/1
+  @default_paritions 1
+
   defstruct [
     :name,
-    partitions: 0,
+    partitions: @default_paritions,
     total_memory_threshold: :infinity,
-    hash_by: &Function.identity/1,
+    hash_by: @default_hash_by,
     private: %{
       shards: %{}
     }
@@ -22,9 +25,9 @@ defmodule Airbag.Buffer do
     :buffer_meta,
     [
       :buffer_name,
-      partitions: 1,
+      partitions: @default_paritions,
       total_memory_threshold: :infinity,
-      hash_by: &Function.identity/1
+      hash_by: @default_hash_by
     ]
   )
 
@@ -67,7 +70,7 @@ defmodule Airbag.Buffer do
           | {:hash_by, (term() -> term())}
           | {:shard_ets_opts, list()}
 
-  @type opts :: [opt()]
+  @type opts() :: [opt()]
 
   @default_shard_table_opts [
     :public,
@@ -89,7 +92,7 @@ defmodule Airbag.Buffer do
     partitions = Keyword.get(opts, :partitions, System.schedulers_online())
     total_memory_threshold = Keyword.get(opts, :total_memory_threshold, :infinity)
 
-    hash_by = Keyword.get(opts, :hash_by, &Function.identity/1)
+    hash_by = Keyword.get(opts, :hash_by, @default_hash_by)
     true = is_function(hash_by, 1)
 
     buffer_meta =
