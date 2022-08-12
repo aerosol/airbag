@@ -61,12 +61,12 @@ defmodule Airbag.Buffer do
               hash_by: (term() -> term())
             )
 
-  @type opt :: [
+  @type opt() ::
           {:partitions, non_neg_integer()}
           | {:total_memory_threshold, non_neg_integer() | :infinity}
           | {:hash_by, (term() -> term())}
           | {:shard_ets_opts, list()}
-        ]
+
   @type opts :: [opt()]
 
   @default_shard_table_opts [
