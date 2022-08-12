@@ -19,6 +19,24 @@ defmodule Airbag.Buffer do
   ]
 
   @type t :: %Buffer{}
+  @type buffer_name() :: atom()
+  @type partition_index() :: pos_integer()
+  @type opt() ::
+          {:partitions, pos_integer()}
+          | {:total_memory_threshold, pos_integer() | :infinity}
+          | {:hash_by, (term() -> term())}
+          | {:partition_ets_opts, list()}
+  @type opts() :: [opt()]
+
+  @default_partition_table_opts [
+    :public,
+    :named_table,
+    :ordered_set,
+    write_concurrency: true
+  ]
+
+  @meta_table_name __MODULE__
+  @meta_table_opts [:public, :ordered_set, :named_table, keypos: 2, read_concurrency: true]
 
   Record.defrecordp(
     :buffer_meta,
@@ -40,46 +58,6 @@ defmodule Airbag.Buffer do
       read_loc: 0
     ]
   )
-
-  @type buffer_name() :: atom()
-  @type partition_index() :: pos_integer()
-
-  @opaque partition_meta_entry() ::
-            record(:partition_meta_entry,
-              key: {buffer_name(), partition_index()},
-              ref: atom(),
-              reserve_loc: non_neg_integer(),
-              write_loc: non_neg_integer(),
-              read_loc: non_neg_integer()
-            )
-
-  @type partitions_meta() :: list(partition_meta_entry())
-
-  @opaque buffer_meta() ::
-            record(:buffer_meta,
-              buffer_name: buffer_name(),
-              partition_count: pos_integer(),
-              total_memory_threshold: pos_integer() | :infinity,
-              hash_by: (term() -> term())
-            )
-
-  @type opt() ::
-          {:partitions, pos_integer()}
-          | {:total_memory_threshold, pos_integer() | :infinity}
-          | {:hash_by, (term() -> term())}
-          | {:partition_ets_opts, list()}
-
-  @type opts() :: [opt()]
-
-  @default_partition_table_opts [
-    :public,
-    :named_table,
-    :ordered_set,
-    write_concurrency: true
-  ]
-
-  @meta_table_name __MODULE__
-  @meta_table_opts [:public, :ordered_set, :named_table, keypos: 2, read_concurrency: true]
 
   @spec new(buffer_name(), opts()) :: t()
   def new(buffer_name, opts \\ []) do
