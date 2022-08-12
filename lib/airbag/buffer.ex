@@ -42,7 +42,7 @@ defmodule Airbag.Buffer do
   )
 
   @type buffer_name() :: atom()
-  @type partition_index() :: non_neg_integer()
+  @type partition_index() :: pos_integer()
 
   @opaque partition_meta_entry() ::
             record(:partition_meta_entry,
@@ -58,14 +58,14 @@ defmodule Airbag.Buffer do
   @opaque buffer_meta() ::
             record(:buffer_meta,
               buffer_name: buffer_name(),
-              partition_count: non_neg_integer(),
-              total_memory_threshold: non_neg_integer() | :infinity,
+              partition_count: pos_integer(),
+              total_memory_threshold: pos_integer() | :infinity,
               hash_by: (term() -> term())
             )
 
   @type opt() ::
-          {:partitions, non_neg_integer()}
-          | {:total_memory_threshold, non_neg_integer() | :infinity}
+          {:partitions, pos_integer()}
+          | {:total_memory_threshold, pos_integer() | :infinity}
           | {:hash_by, (term() -> term())}
           | {:partition_ets_opts, list()}
 
