@@ -7,11 +7,10 @@ defmodule Airbag.Buffer do
   # TODO: test distributed_counters impact on ets:size
 
   @default_hash_by &Function.identity/1
-  @default_paritions 1
 
   defstruct [
     :name,
-    partitions: @default_paritions,
+    :partitions,
     total_memory_threshold: :infinity,
     hash_by: @default_hash_by,
     private: %{
@@ -25,7 +24,7 @@ defmodule Airbag.Buffer do
     :buffer_meta,
     [
       :buffer_name,
-      partitions: @default_paritions,
+      :partitions,
       total_memory_threshold: :infinity,
       hash_by: @default_hash_by
     ]
