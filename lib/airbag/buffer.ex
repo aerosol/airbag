@@ -1,4 +1,15 @@
 defmodule Airbag.Buffer do
+  @moduledoc """
+  A FIFO ets buffer implementation based on ets_buffer [^1]. 
+  Notable differences:
+
+  - option to route writes to multiple paritions base on `:hash_by` user function return
+  - customizable ets init options
+  - total max memory threshold (in bytes) monitoring after which writes are rejected
+  - emits telemetry events
+
+  ^[1]: https://github.com/duomark/epocxy/blob/master/src/ets_buffer.erl
+  """
   require Record
   alias __MODULE__
 
