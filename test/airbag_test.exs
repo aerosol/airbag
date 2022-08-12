@@ -8,47 +8,61 @@ defmodule AirbagTest do
     buffer = Buffer.new(TestBuffer)
 
     schedulers = System.schedulers_online()
-    assert map_size(buffer.private.shards) == schedulers
+    assert map_size(buffer.private.partitions) == schedulers
+    assert buffer.partition_count == schedulers
     identity_fn = &Function.identity/1
 
-    assert buffer.partitions == schedulers
     assert buffer.hash_by == identity_fn
     assert buffer.name
 
-    assert Enum.all?(buffer.private.shards, fn {partition, shard} ->
-             assert is_integer(partition)
-             assert shard.reserve_loc == 0
-             assert shard.read_loc == 0
-             assert shard.write_loc == 0
+    assert Enum.all?(buffer.private.partitions, fn {partition_index, partition} ->
+             assert is_integer(partition_index)
+             assert partition.reserve_loc == 0
+             assert partition.read_loc == 0
+             assert partition.write_loc == 0
            end)
   end
 
   test "initialises the buffer with custom opts" do
     buffer =
       Buffer.new(TestBuffer,
-        partitions: 2,
+        partition_count: 2,
         total_memory_threshold: 100,
         hash_by: &IO.inspect/1
       )
 
     assert buffer.hash_by == (&IO.inspect/1)
-    assert buffer.partitions == 2
+    assert buffer.partition_count == 2
     # FIXME: values less than 1500 are practically unusable
     assert buffer.total_memory_threshold == 100
   end
 
+  test "fails to initialise with improper hash_by function" do
+    assert_raise RuntimeError,
+                 ":hash_by must be a function of arity 1",
+                 fn ->
+                   Buffer.new(TestBuffer, hash_by: :moo)
+                 end
+
+    assert_raise RuntimeError,
+                 ":hash_by must be a function of arity 1",
+                 fn ->
+                   Buffer.new(TestBuffer, hash_by: fn _, _ -> :moo end)
+                 end
+  end
+
   test "allows to initialise >1 buffers" do
-    assert Buffer.new(TestBuffer1, partitions: 1)
-    assert Buffer.new(TestBuffer2, partitions: 1)
+    assert Buffer.new(TestBuffer1, partition_count: 1)
+    assert Buffer.new(TestBuffer2, partition_count: 1)
   end
 
   test "fails to initialise the same buffer name twice" do
-    Buffer.new(TestBuffer, partitions: 1)
+    Buffer.new(TestBuffer, partition_count: 1)
 
     assert_raise RuntimeError,
                  "Buffer TestBuffer already exists",
                  fn ->
-                   Buffer.new(TestBuffer, partitions: 2)
+                   Buffer.new(TestBuffer, partition_count: 2)
                  end
   end
 
@@ -57,79 +71,79 @@ defmodule AirbagTest do
     assert ^buffer = Buffer.info!(TestBuffer)
   end
 
-  test "put/2 bumps read/reserve locations" do
-    buffer = Buffer.new(TestBuffer, partitions: 1)
+  test "enqueue/2 bumps read/reserve locations" do
+    buffer = Buffer.new(TestBuffer, partition_count: 1)
 
     name = buffer.name
 
     buffer = Buffer.info!(name)
-    assert buffer.private.shards[1].read_loc == 0
-    assert buffer.private.shards[1].write_loc == 0
-    assert buffer.private.shards[1].reserve_loc == 0
+    assert buffer.private.partitions[1].read_loc == 0
+    assert buffer.private.partitions[1].write_loc == 0
+    assert buffer.private.partitions[1].reserve_loc == 0
 
-    assert {:ok, 1} = Buffer.put(buffer, %{object: :alice})
+    assert {:ok, 1} = Buffer.enqueue(buffer, %{object: :alice})
 
     buffer = Buffer.info!(name)
-    assert buffer.private.shards[1].read_loc == 0
-    assert buffer.private.shards[1].write_loc == 1
-    assert buffer.private.shards[1].reserve_loc == 1
+    assert buffer.private.partitions[1].read_loc == 0
+    assert buffer.private.partitions[1].write_loc == 1
+    assert buffer.private.partitions[1].reserve_loc == 1
   end
 
-  test "put/2 routes to shards" do
-    buffer = Buffer.new(TestBuffer, partitions: 2)
+  test "enqueue/2 routes to partitions" do
+    buffer = Buffer.new(TestBuffer, partition_count: 2)
 
-    assert {:ok, 1} = Buffer.put(buffer, %{object: :alice})
-    assert {:ok, 2} = Buffer.put(buffer, %{object: :bob})
-    assert {:ok, 1} = Buffer.put(buffer, %{object: :alice})
+    assert {:ok, 1} = Buffer.enqueue(buffer, %{object: :alice})
+    assert {:ok, 2} = Buffer.enqueue(buffer, %{object: :bob})
+    assert {:ok, 1} = Buffer.enqueue(buffer, %{object: :alice})
   end
 
   test "a custom hash_by/1 function can be supplied for routing" do
-    partitions = 2
+    partition_count = 2
     dummy_hash_by = fn _ -> 1 end
     # phash always returns 0 for dummy hash return, so always first partition is chosen
-    assert :erlang.phash2(1, partitions) == 0
+    assert :erlang.phash2(1, partition_count) == 0
 
-    buffer = Buffer.new(TestBuffer, partitions: partitions, hash_by: dummy_hash_by)
+    buffer = Buffer.new(TestBuffer, partition_count: partition_count, hash_by: dummy_hash_by)
 
     for _ <- 1..10 do
-      assert {:ok, 1} = Buffer.put(buffer, :crypto.strong_rand_bytes(10))
+      assert {:ok, 1} = Buffer.enqueue(buffer, :crypto.strong_rand_bytes(10))
     end
   end
 
-  test "put/2 fails when memory threshold is reached" do
+  test "enqueue/2 fails when memory threshold is reached" do
     threshold = 1500
 
-    buffer = Buffer.new(TestBuffer, partitions: 1, total_memory_threshold: threshold)
+    buffer = Buffer.new(TestBuffer, partition_count: 1, total_memory_threshold: threshold)
 
-    assert {:ok, _} = Buffer.put(buffer, %{object: :smol1})
+    assert {:ok, _} = Buffer.enqueue(buffer, %{object: :smol1})
 
     initial_size =
-      :ets.info(buffer.private.shards[1].ref, :memory) * :erlang.system_info(:wordsize)
+      :ets.info(buffer.private.partitions[1].ref, :memory) * :erlang.system_info(:wordsize)
 
     filler = generate_term(threshold - initial_size)
     flat_term_size = :erts_debug.flat_size(filler)
 
     assert initial_size + flat_term_size == 1500
-    assert {:ok, _} = Buffer.put(buffer, filler)
+    assert {:ok, _} = Buffer.enqueue(buffer, filler)
 
-    assert {:error, :threshold_reached} = Buffer.put(buffer, %{object: :smol2})
+    assert {:error, :threshold_reached} = Buffer.enqueue(buffer, %{object: :smol2})
   end
 
-  test "pop/2 gets first item(s) and deletes them" do
-    buffer = Buffer.new(TestBuffer, partitions: 1)
-    {:ok, _} = Buffer.put(buffer, :foo)
-    {:ok, _} = Buffer.put(buffer, :foobar)
-    {:ok, _} = Buffer.put(buffer, :foobaz)
+  test "dequeue/2 gets first item(s) and deletes them" do
+    buffer = Buffer.new(TestBuffer, partition_count: 1)
+    {:ok, _} = Buffer.enqueue(buffer, :foo)
+    {:ok, _} = Buffer.enqueue(buffer, :foobar)
+    {:ok, _} = Buffer.enqueue(buffer, :foobaz)
 
-    assert [:foo] = Buffer.pop(buffer, 1)
-    assert length(:ets.tab2list(buffer.private.shards[1].ref)) == 2
-    assert [:foobar, :foobaz] = Buffer.pop(buffer, 1, limit: 3)
-    assert length(:ets.tab2list(buffer.private.shards[1].ref)) == 0
+    assert [:foo] = Buffer.dequeue(buffer, 1)
+    assert length(:ets.tab2list(buffer.private.partitions[1].ref)) == 2
+    assert [:foobar, :foobaz] = Buffer.dequeue(buffer, 1, limit: 3)
+    assert length(:ets.tab2list(buffer.private.partitions[1].ref)) == 0
   end
 
-  test "pop/2 returns nil if no entries written" do
-    buffer = Buffer.new(TestBuffer, partitions: 1)
-    refute Buffer.pop(buffer, 1)
+  test "dequeue/2 returns nil if no entries written" do
+    buffer = Buffer.new(TestBuffer, partition_count: 1)
+    refute Buffer.dequeue(buffer, 1)
   end
 
   defp generate_term(max_size) do

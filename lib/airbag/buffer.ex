@@ -92,7 +92,7 @@ defmodule Airbag.Buffer do
     total_memory_threshold = Keyword.get(opts, :total_memory_threshold, :infinity)
 
     hash_by = Keyword.get(opts, :hash_by, @default_hash_by)
-    true = is_function(hash_by, 1)
+    is_function(hash_by, 1) || raise ":hash_by must be a function of arity 1"
 
     buffer_meta =
       buffer_meta(
