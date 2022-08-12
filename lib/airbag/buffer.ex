@@ -4,6 +4,7 @@ defmodule Airbag.Buffer do
 
   # TODO: option for periodic sampling
   # TODO: telemetry integration for watermarks
+  # TODO: test distributed_counters impact on ets:size
 
   defstruct [
     :name,
@@ -15,7 +16,7 @@ defmodule Airbag.Buffer do
     }
   ]
 
-  @type buffer :: %Buffer{}
+  @type t :: %Buffer{}
 
   Record.defrecord(
     :buffer_meta,
@@ -61,10 +62,10 @@ defmodule Airbag.Buffer do
             )
 
   @type opt :: [
-          {:partitions, non_neg_integer()},
-          {:total_memory_threshold, non_neg_integer() | :infinity},
-          {:hash_by, (term() -> term())},
-          {:shard_ets_opts, list()}
+          {:partitions, non_neg_integer()}
+          | {:total_memory_threshold, non_neg_integer() | :infinity}
+          | {:hash_by, (term() -> term())}
+          | {:shard_ets_opts, list()}
         ]
   @type opts :: [opt()]
 
@@ -78,21 +79,7 @@ defmodule Airbag.Buffer do
   @meta_table_name __MODULE__
   @meta_table_opts [:public, :ordered_set, :named_table, keypos: 2, read_concurrency: true]
 
-  def reserve_write_cmd(), do: {shard_meta_entry(:reserve_loc) + 1, 1}
-
-  def publish_write_cmd(),
-    do: [{shard_meta_entry(:write_loc) + 1, 1}, {shard_meta_entry(:read_loc) + 1, 0}]
-
-  def get_write_cmd(),
-    do: {shard_meta_entry(:write_loc) + 1, 0}
-
-  def reserve_read_cmd(write_loc, num_items),
-    do: [
-      {shard_meta_entry(:read_loc) + 1, 0},
-      {shard_meta_entry(:read_loc) + 1, num_items, write_loc - 1, write_loc}
-    ]
-
-  @spec new(buffer_name(), opts()) :: {:ok, buffer()}
+  @spec new(buffer_name(), opts()) :: t()
   def new(buffer_name, opts \\ []) do
     true =
       :ets.info(@meta_table_name, :named_table) != :undefined or
@@ -123,10 +110,10 @@ defmodule Airbag.Buffer do
         shard_ets_opts
       )
 
-    {:ok, to_info(buffer_meta, shard_meta)}
+    to_info(buffer_meta, shard_meta)
   end
 
-  @spec put(buffer(), term()) ::
+  @spec put(t(), term()) ::
           {:ok, partition()}
           | {:error, :threshold_reached}
   def put(buffer = %Buffer{}, term) do
@@ -150,7 +137,7 @@ defmodule Airbag.Buffer do
     end
   end
 
-  @spec pop(buffer(), non_neg_integer(), [{:limit, non_neg_integer()}]) :: nil | list(any())
+  @spec pop(t(), non_neg_integer(), [{:limit, non_neg_integer()}]) :: nil | list(any())
   def pop(buffer = %Buffer{}, partition, opts \\ []) do
     limit = Keyword.get(opts, :limit, 1)
     buffer_name = buffer.name
@@ -175,7 +162,7 @@ defmodule Airbag.Buffer do
     end
   end
 
-  @spec info!(buffer_name()) :: buffer()
+  @spec info!(buffer_name()) :: t()
   def info!(buffer_name) do
     match_specs = [
       {{:buffer_meta, buffer_name, :_, :_, :_}, [], [:"$_"]},
@@ -266,4 +253,18 @@ defmodule Airbag.Buffer do
       update_command
     )
   end
+
+  defp reserve_write_cmd(), do: {shard_meta_entry(:reserve_loc) + 1, 1}
+
+  defp publish_write_cmd(),
+    do: [{shard_meta_entry(:write_loc) + 1, 1}, {shard_meta_entry(:read_loc) + 1, 0}]
+
+  defp get_write_cmd(),
+    do: {shard_meta_entry(:write_loc) + 1, 0}
+
+  defp reserve_read_cmd(write_loc, num_items),
+    do: [
+      {shard_meta_entry(:read_loc) + 1, 0},
+      {shard_meta_entry(:read_loc) + 1, num_items, write_loc - 1, write_loc}
+    ]
 end

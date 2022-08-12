@@ -5,7 +5,7 @@ defmodule AirbagTest do
   require Airbag.Buffer
 
   test "initialises the buffer with default opts" do
-    {:ok, buffer} = Buffer.new(TestBuffer)
+    buffer = Buffer.new(TestBuffer)
 
     schedulers = System.schedulers_online()
     assert map_size(buffer.private.shards) == schedulers
@@ -24,7 +24,7 @@ defmodule AirbagTest do
   end
 
   test "initialises the buffer with custom opts" do
-    {:ok, buffer} =
+    buffer =
       Buffer.new(TestBuffer,
         partitions: 2,
         total_memory_threshold: 100,
@@ -38,12 +38,12 @@ defmodule AirbagTest do
   end
 
   test "allows to initialise >1 buffers" do
-    assert {:ok, _} = Buffer.new(TestBuffer1, partitions: 1)
-    assert {:ok, _} = Buffer.new(TestBuffer2, partitions: 1)
+    assert Buffer.new(TestBuffer1, partitions: 1)
+    assert Buffer.new(TestBuffer2, partitions: 1)
   end
 
   test "fails to initialise the same buffer name twice" do
-    {:ok, _} = Buffer.new(TestBuffer, partitions: 1)
+    Buffer.new(TestBuffer, partitions: 1)
 
     assert_raise RuntimeError,
                  "Buffer TestBuffer already exists",
@@ -53,12 +53,12 @@ defmodule AirbagTest do
   end
 
   test "buffer/1 retrieves buffer buffer" do
-    assert {:ok, buffer} = Buffer.new(TestBuffer)
+    assert buffer = Buffer.new(TestBuffer)
     assert ^buffer = Buffer.info!(TestBuffer)
   end
 
   test "put/2 bumps read/reserve locations" do
-    {:ok, buffer} = Buffer.new(TestBuffer, partitions: 1)
+    buffer = Buffer.new(TestBuffer, partitions: 1)
 
     name = buffer.name
 
@@ -76,7 +76,7 @@ defmodule AirbagTest do
   end
 
   test "put/2 routes to shards" do
-    {:ok, buffer} = Buffer.new(TestBuffer, partitions: 2)
+    buffer = Buffer.new(TestBuffer, partitions: 2)
 
     assert {:ok, 1} = Buffer.put(buffer, %{object: :alice})
     assert {:ok, 2} = Buffer.put(buffer, %{object: :bob})
@@ -89,7 +89,7 @@ defmodule AirbagTest do
     # phash always returns 0 for dummy hash return, so always first partition is chosen
     assert :erlang.phash2(1, partitions) == 0
 
-    {:ok, buffer} = Buffer.new(TestBuffer, partitions: partitions, hash_by: dummy_hash_by)
+    buffer = Buffer.new(TestBuffer, partitions: partitions, hash_by: dummy_hash_by)
 
     for _ <- 1..10 do
       assert {:ok, 1} = Buffer.put(buffer, :crypto.strong_rand_bytes(10))
@@ -99,7 +99,7 @@ defmodule AirbagTest do
   test "put/2 fails when memory threshold is reached" do
     threshold = 1500
 
-    {:ok, buffer} = Buffer.new(TestBuffer, partitions: 1, total_memory_threshold: threshold)
+    buffer = Buffer.new(TestBuffer, partitions: 1, total_memory_threshold: threshold)
 
     assert {:ok, _} = Buffer.put(buffer, %{object: :smol1})
 
@@ -116,7 +116,7 @@ defmodule AirbagTest do
   end
 
   test "pop/2 gets first item(s) and deletes them" do
-    {:ok, buffer} = Buffer.new(TestBuffer, partitions: 1)
+    buffer = Buffer.new(TestBuffer, partitions: 1)
     {:ok, _} = Buffer.put(buffer, :foo)
     {:ok, _} = Buffer.put(buffer, :foobar)
     {:ok, _} = Buffer.put(buffer, :foobaz)
@@ -128,7 +128,7 @@ defmodule AirbagTest do
   end
 
   test "pop/2 returns nil if no entries written" do
-    {:ok, buffer} = Buffer.new(TestBuffer, partitions: 1)
+    buffer = Buffer.new(TestBuffer, partitions: 1)
     refute Buffer.pop(buffer, 1)
   end
 
