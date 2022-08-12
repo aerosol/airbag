@@ -153,9 +153,9 @@ defmodule AirbagTest do
     assert length(:ets.tab2list(buffer.private.partitions[1].ref)) == 0
   end
 
-  test "dequeue/2 returns nil if no entries written", %{test: test} do
+  test "dequeue/2 returns empty list if no entries written", %{test: test} do
     buffer = Buffer.new(test, partition_count: 1)
-    refute Buffer.dequeue(buffer, 1)
+    assert Buffer.dequeue(buffer, 1) == []
   end
 
   defp generate_term(max_size) do

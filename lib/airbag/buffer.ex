@@ -144,7 +144,7 @@ defmodule Airbag.Buffer do
     end
   end
 
-  @spec dequeue(t(), partition_index(), [{:limit, non_neg_integer()}]) :: nil | list(any())
+  @spec dequeue(t(), partition_index(), [{:limit, pos_integer()}]) :: list(any())
   def dequeue(buffer = %Buffer{}, partition_index, opts \\ []) do
     limit = Keyword.get(opts, :limit, 1)
     buffer_name = buffer.name
@@ -161,7 +161,7 @@ defmodule Airbag.Buffer do
 
     case :ets.select(partition_table_name, match_specs_read) do
       [] ->
-        nil
+        []
 
       data ->
         :ets.select_delete(partition_table_name, match_specs_delete)
