@@ -4,8 +4,8 @@ defmodule AirbagTest do
   alias Airbag.Buffer
   require Airbag.Buffer
 
-  test "initialises the buffer with default opts" do
-    buffer = Buffer.new(TestBuffer)
+  test "initialises the buffer with default opts", %{test: test} do
+    buffer = Buffer.new(test)
 
     schedulers = System.schedulers_online()
     assert map_size(buffer.private.partitions) == schedulers
@@ -23,9 +23,9 @@ defmodule AirbagTest do
            end)
   end
 
-  test "initialises the buffer with custom opts" do
+  test "initialises the buffer with custom opts", %{test: test} do
     buffer =
-      Buffer.new(TestBuffer,
+      Buffer.new(test,
         partition_count: 2,
         total_memory_threshold: 100,
         hash_by: &IO.inspect/1
@@ -66,13 +66,20 @@ defmodule AirbagTest do
                  end
   end
 
-  test "buffer/1 retrieves buffer buffer" do
-    assert buffer = Buffer.new(TestBuffer)
-    assert ^buffer = Buffer.info!(TestBuffer)
+  test "info!/1 retrieves buffer", %{test: test} do
+    assert buffer = Buffer.new(test)
+    assert ^buffer = Buffer.info!(test)
   end
 
-  test "enqueue/2 bumps read/reserve locations" do
-    buffer = Buffer.new(TestBuffer, partition_count: 1)
+  test "info/2 optionally retrieves only buffer meta", %{test: test} do
+    Buffer.new(test)
+    assert %Buffer{} = buffer = Buffer.info!(test, only: :buffer_meta)
+    assert buffer.partition_count == System.schedulers_online()
+    refute map_size(buffer.private) == 0
+  end
+
+  test "enqueue/2 bumps read/reserve locations", %{test: test} do
+    buffer = Buffer.new(test, partition_count: 1)
 
     name = buffer.name
 
@@ -89,31 +96,36 @@ defmodule AirbagTest do
     assert buffer.private.partitions[1].reserve_loc == 1
   end
 
-  test "enqueue/2 routes to partitions" do
-    buffer = Buffer.new(TestBuffer, partition_count: 2)
+  test "enqueue/2 routes to partitions", %{test: test} do
+    buffer = Buffer.new(test, partition_count: 2)
 
     assert {:ok, 1} = Buffer.enqueue(buffer, %{object: :alice})
     assert {:ok, 2} = Buffer.enqueue(buffer, %{object: :bob})
     assert {:ok, 1} = Buffer.enqueue(buffer, %{object: :alice})
   end
 
-  test "a custom hash_by/1 function can be supplied for routing" do
+  test "a custom hash_by/1 function can be supplied for routing", %{test: test} do
     partition_count = 2
     dummy_hash_by = fn _ -> 1 end
     # phash always returns 0 for dummy hash return, so always first partition is chosen
     assert :erlang.phash2(1, partition_count) == 0
 
-    buffer = Buffer.new(TestBuffer, partition_count: partition_count, hash_by: dummy_hash_by)
+    buffer = Buffer.new(test, partition_count: partition_count, hash_by: dummy_hash_by)
 
     for _ <- 1..10 do
       assert {:ok, 1} = Buffer.enqueue(buffer, :crypto.strong_rand_bytes(10))
     end
   end
 
-  test "enqueue/2 fails when memory threshold is reached" do
+  test "enqueue/2 works when only buffer_name is provided", %{test: test} do
+    buffer = Buffer.new(test, partition_count: 1)
+    assert {:ok, 1} = Buffer.enqueue(buffer.name, %{object: :alice})
+  end
+
+  test "enqueue/2 fails when memory threshold is reached", %{test: test} do
     threshold = 1500
 
-    buffer = Buffer.new(TestBuffer, partition_count: 1, total_memory_threshold: threshold)
+    buffer = Buffer.new(test, partition_count: 1, total_memory_threshold: threshold)
 
     assert {:ok, _} = Buffer.enqueue(buffer, %{object: :smol1})
 
@@ -129,8 +141,8 @@ defmodule AirbagTest do
     assert {:error, :threshold_reached} = Buffer.enqueue(buffer, %{object: :smol2})
   end
 
-  test "dequeue/2 gets first item(s) and deletes them" do
-    buffer = Buffer.new(TestBuffer, partition_count: 1)
+  test "dequeue/2 gets first item(s) and deletes them", %{test: test} do
+    buffer = Buffer.new(test, partition_count: 1)
     {:ok, _} = Buffer.enqueue(buffer, :foo)
     {:ok, _} = Buffer.enqueue(buffer, :foobar)
     {:ok, _} = Buffer.enqueue(buffer, :foobaz)
@@ -141,8 +153,8 @@ defmodule AirbagTest do
     assert length(:ets.tab2list(buffer.private.partitions[1].ref)) == 0
   end
 
-  test "dequeue/2 returns nil if no entries written" do
-    buffer = Buffer.new(TestBuffer, partition_count: 1)
+  test "dequeue/2 returns nil if no entries written", %{test: test} do
+    buffer = Buffer.new(test, partition_count: 1)
     refute Buffer.dequeue(buffer, 1)
   end
 

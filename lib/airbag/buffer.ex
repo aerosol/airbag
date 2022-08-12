@@ -115,9 +115,14 @@ defmodule Airbag.Buffer do
     to_info(buffer_meta, partitions_meta)
   end
 
-  @spec enqueue(t(), term()) ::
+  @spec enqueue(t() | buffer_name(), term()) ::
           {:ok, partition_index()}
           | {:error, :threshold_reached}
+  def enqueue(buffer_name, term) when is_atom(buffer_name) do
+    buffer = info!(buffer_name, only: :buffer_meta)
+    enqueue(buffer, term)
+  end
+
   def enqueue(buffer = %Buffer{}, term) do
     dest_partition_index =
       term
@@ -164,15 +169,21 @@ defmodule Airbag.Buffer do
     end
   end
 
-  @spec info!(buffer_name()) :: t()
-  def info!(buffer_name) do
-    match_specs = [
-      {{:buffer_meta, buffer_name, :_, :_, :_}, [], [:"$_"]},
+  @spec info!(buffer_name(), [{:only, :buffer_meta}]) :: t()
+  def info!(buffer_name, opts \\ []) do
+    match_specs_buffer_meta = {{:buffer_meta, buffer_name, :_, :_, :_}, [], [:"$_"]}
+
+    match_specs_partition_meta =
       {{:partition_meta_entry, {buffer_name, :_}, :_, :_, :_, :_}, [], [:"$_"]}
-    ]
+
+    match_specs =
+      case Keyword.get(opts, :only) do
+        nil -> [match_specs_buffer_meta, match_specs_partition_meta]
+        :buffer_meta -> [match_specs_buffer_meta]
+      end
 
     case :ets.select(@meta_table_name, match_specs) do
-      [] -> raise "Invalid buffer #{buffer_name}"
+      [] -> raise "Invalid buffer #{inspect(buffer_name)}"
       meta -> to_info(meta)
     end
   end
