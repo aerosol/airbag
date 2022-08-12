@@ -20,7 +20,7 @@ defmodule Airbag.Buffer do
 
   @type t :: %Buffer{}
 
-  Record.defrecord(
+  Record.defrecordp(
     :buffer_meta,
     [
       :buffer_name,
@@ -30,7 +30,7 @@ defmodule Airbag.Buffer do
     ]
   )
 
-  Record.defrecord(
+  Record.defrecordp(
     :partition_meta_entry,
     [
       :key,
