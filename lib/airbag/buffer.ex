@@ -137,10 +137,15 @@ defmodule Airbag.Buffer do
     end
   end
 
-  @spec dequeue(t(), partition_index(), [{:limit, pos_integer()}]) :: list(any())
-  def dequeue(buffer = %Buffer{}, partition_index, opts \\ []) do
+  @spec dequeue(t() | buffer_name(), partition_index(), [{:limit, pos_integer()}]) :: list(any())
+  def dequeue(buffer_or_buffer_name, partition_index, opts \\ [])
+
+  def dequeue(buffer = %Buffer{}, partition_index, opts) do
+    dequeue(buffer.name, partition_index, opts)
+  end
+
+  def dequeue(buffer_name, partition_index, opts) when is_atom(buffer_name) do
     limit = Keyword.get(opts, :limit, 1)
-    buffer_name = buffer.name
     key = {buffer_name, partition_index}
     partition_table_name = partition_table_name(buffer_name, partition_index)
 

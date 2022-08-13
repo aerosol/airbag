@@ -158,6 +158,12 @@ defmodule AirbagTest do
     assert Buffer.dequeue(buffer, 1) == []
   end
 
+  test "dequeue/2 works when only buffer_name is provided", %{test: test} do
+    buffer = Buffer.new(test, partition_count: 1)
+    assert {:ok, 1} = Buffer.enqueue(buffer.name, %{object: :alice})
+    assert [%{object: :alice}] = Buffer.dequeue(buffer.name, 1)
+  end
+
   defp generate_term(max_size) do
     generate_term([], :erts_debug.flat_size([]), max_size)
   end
