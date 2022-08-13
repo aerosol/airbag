@@ -1,0 +1,10 @@
+counter = 0
+
+request = function()
+   wrk.headers["X-Counter"] = counter
+   wrk.method = "POST"
+   wrk.body = '{"n":"pageview","u":"http://dummy.site/some-page","d":"dummy.site","r":null,"w":' .. counter .. '}'
+   wrk.headers["Content-Type"] = "application/json"
+   counter = counter + 1
+   return wrk.format(nil, "/buffer_1")
+end
