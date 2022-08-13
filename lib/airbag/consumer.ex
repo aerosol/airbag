@@ -9,7 +9,6 @@ defmodule Airbag.Consumer do
   @impl true
   def init(opts) do
     _ = Buffer.info!(opts.buffer_name)
-    IO.puts("Consumer #{inspect(opts)} is up")
     {:ok, opts, {:continue, :start_reading}}
   end
 

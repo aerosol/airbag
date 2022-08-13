@@ -1,0 +1,161 @@
+
+Benchmark:
+PARTITION_COUNT = 8
+TOTAL_MEMORY_THRESHOLD = 1000000
+CONSUMERS_PER_PARTITION = 1
+DEQUEUE_LIMIT = 1
+--------------------------------------------------------
+Preparing to start...
+Compiling 2 files (.ex)
+buffer_initialized: #Airbag<ExampleBuffer1:8->1000000>
+Workers initialized.
+Running 30s test @ http://localhost:8099
+  8 threads and 64 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     2.53ms    1.87ms  52.23ms   88.07%
+    Req/Sec     3.36k   548.86     5.44k    71.58%
+  802706 requests in 30.02s, 117.01MB read
+  Non-2xx or 3xx responses: 299440
+Requests/sec:  26741.57
+Transfer/sec:      3.90MB
+Shutting down
+
+Benchmark:
+PARTITION_COUNT = 8
+TOTAL_MEMORY_THRESHOLD = 1000000
+CONSUMERS_PER_PARTITION = 4
+DEQUEUE_LIMIT = 1
+--------------------------------------------------------
+Preparing to start...
+buffer_initialized: #Airbag<ExampleBuffer1:8->1000000>
+Workers initialized.
+Running 30s test @ http://localhost:8099
+  8 threads and 64 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     2.92ms    2.14ms  45.47ms   85.29%
+    Req/Sec     2.95k   568.59     5.38k    71.12%
+  705043 requests in 30.01s, 103.53MB read
+  Non-2xx or 3xx responses: 300514
+Requests/sec:  23491.79
+Transfer/sec:      3.45MB
+Shutting down
+
+Benchmark:
+PARTITION_COUNT = 8
+TOTAL_MEMORY_THRESHOLD = 1000000
+CONSUMERS_PER_PARTITION = 1
+DEQUEUE_LIMIT = 4
+--------------------------------------------------------
+Preparing to start...
+buffer_initialized: #Airbag<ExampleBuffer1:8->1000000>
+Workers initialized.
+Running 30s test @ http://localhost:8099
+  8 threads and 64 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     2.90ms    2.07ms  44.07ms   84.98%
+    Req/Sec     2.95k   479.05     5.20k    68.62%
+  704139 requests in 30.02s, 103.33MB read
+  Non-2xx or 3xx responses: 296729
+Requests/sec:  23457.93
+Transfer/sec:      3.44MB
+Shutting down
+
+Benchmark:
+PARTITION_COUNT = 8
+TOTAL_MEMORY_THRESHOLD = 1000000
+CONSUMERS_PER_PARTITION = 4
+DEQUEUE_LIMIT = 8
+--------------------------------------------------------
+Preparing to start...
+buffer_initialized: #Airbag<ExampleBuffer1:8->1000000>
+Workers initialized.
+Running 30s test @ http://localhost:8099
+  8 threads and 64 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     3.32ms    3.94ms 105.17ms   94.33%
+    Req/Sec     2.74k   560.17     4.73k    70.69%
+  653097 requests in 30.02s, 96.89MB read
+  Non-2xx or 3xx responses: 327674
+Requests/sec:  21755.06
+Transfer/sec:      3.23MB
+Shutting down
+
+Benchmark:
+PARTITION_COUNT = 8
+TOTAL_MEMORY_THRESHOLD = 1000000
+CONSUMERS_PER_PARTITION = 8
+DEQUEUE_LIMIT = 1
+--------------------------------------------------------
+Preparing to start...
+buffer_initialized: #Airbag<ExampleBuffer1:8->1000000>
+Workers initialized.
+Running 30s test @ http://localhost:8099
+  8 threads and 64 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     9.48ms   10.74ms 180.84ms   90.35%
+    Req/Sec     1.08k   741.76     4.34k    77.63%
+  256451 requests in 30.04s, 37.67MB read
+  Non-2xx or 3xx responses: 110227
+Requests/sec:   8537.87
+Transfer/sec:      1.25MB
+Shutting down
+
+Benchmark:
+PARTITION_COUNT = 8
+TOTAL_MEMORY_THRESHOLD = 1000000
+CONSUMERS_PER_PARTITION = 8
+DEQUEUE_LIMIT = 8
+--------------------------------------------------------
+Preparing to start...
+buffer_initialized: #Airbag<ExampleBuffer1:8->1000000>
+Workers initialized.
+Running 30s test @ http://localhost:8099
+  8 threads and 64 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     5.36ms    5.01ms  87.39ms   87.45%
+    Req/Sec     1.73k   773.32     5.10k    67.54%
+  412869 requests in 30.02s, 62.20MB read
+  Non-2xx or 3xx responses: 254687
+Requests/sec:  13752.71
+Transfer/sec:      2.07MB
+Shutting down
+
+Benchmark:
+PARTITION_COUNT = 8
+TOTAL_MEMORY_THRESHOLD = 1000000
+CONSUMERS_PER_PARTITION = 8
+DEQUEUE_LIMIT = 16
+--------------------------------------------------------
+Preparing to start...
+buffer_initialized: #Airbag<ExampleBuffer1:8->1000000>
+Workers initialized.
+Running 30s test @ http://localhost:8099
+  8 threads and 64 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     6.03ms    5.77ms 103.00ms   88.38%
+    Req/Sec     1.54k   683.77     3.78k    66.49%
+  366863 requests in 30.02s, 55.12MB read
+  Non-2xx or 3xx responses: 218926
+Requests/sec:  12220.97
+Transfer/sec:      1.84MB
+Shutting down
+
+Benchmark:
+PARTITION_COUNT = 8
+TOTAL_MEMORY_THRESHOLD = 1000000
+CONSUMERS_PER_PARTITION = 16
+DEQUEUE_LIMIT = 16
+--------------------------------------------------------
+Preparing to start...
+buffer_initialized: #Airbag<ExampleBuffer1:8->1000000>
+Workers initialized.
+Running 30s test @ http://localhost:8099
+  8 threads and 64 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     5.75ms    4.52ms  54.32ms   80.03%
+    Req/Sec     1.54k   613.56     3.99k    66.12%
+  368591 requests in 30.02s, 54.91MB read
+  Non-2xx or 3xx responses: 196541
+Requests/sec:  12276.68
+Transfer/sec:      1.83MB
+Shutting down

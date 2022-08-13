@@ -31,7 +31,7 @@ defmodule AirBag.Manager do
       end
     end
 
-    IO.puts("initialized")
+    IO.puts("Workers initialized.")
 
     {:ok, pid}
   end

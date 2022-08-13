@@ -163,6 +163,7 @@ defmodule Airbag.Buffer do
 
       data ->
         :ets.select_delete(partition_table_name, match_specs_delete)
+        :erlang.yield()
         data
     end
   end
@@ -279,4 +280,20 @@ defmodule Airbag.Buffer do
       {partition_meta_entry(:read_loc) + 1, 0},
       {partition_meta_entry(:read_loc) + 1, num_items, write_loc - 1, write_loc}
     ]
+end
+
+defimpl Inspect, for: Airbag.Buffer do
+  import Inspect.Algebra
+
+  def inspect(buffer, opts) do
+    concat([
+      "#Airbag<",
+      to_doc(buffer.name, opts),
+      ":",
+      to_doc(buffer.partition_count, opts),
+      "->",
+      to_doc(buffer.total_memory_threshold, opts),
+      ">"
+    ])
+  end
 end

@@ -8,6 +8,22 @@ defmodule Airbag.Application do
   @impl true
   def start(_type, _args) do
     children = [
+      %{
+        id: ExampleBuffer1,
+        start:
+          {AirBag.Manager, :start_link,
+           [
+             %{
+               buffer_name: ExampleBuffer1,
+               partition_count: Application.fetch_env!(:airbag, :partition_count),
+               total_memory_threshold: Application.fetch_env!(:airbag, :total_memory_threshold),
+               processor: fn _ -> :ok end,
+               consumers_per_partition: Application.fetch_env!(:airbag, :consumers_per_partition),
+               dequeue_limit: Application.fetch_env!(:airbag, :dequeue_limit)
+             }
+           ]}
+      },
+      {Plug.Cowboy, scheme: :http, plug: Airbag.ExampleRouter, options: [port: 8099]}
       # Starts a worker by calling: Airbag.Worker.start_link(arg)
       # {Airbag.Worker, arg}
     ]
