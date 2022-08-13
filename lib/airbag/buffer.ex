@@ -114,10 +114,14 @@ defmodule Airbag.Buffer do
 
   def enqueue(buffer = %Buffer{}, term) do
     dest_partition_index =
-      term
-      |> buffer.hash_by.()
-      |> :erlang.phash2(buffer.partition_count)
-      |> Kernel.+(1)
+      if buffer.partition_count == 1 do
+        1
+      else
+        term
+        |> buffer.hash_by.()
+        |> :erlang.phash2(buffer.partition_count)
+        |> Kernel.+(1)
+      end
 
     partition_table_name = partition_table_name(buffer.name, dest_partition_index)
     meta_table_key = {buffer.name, dest_partition_index}
