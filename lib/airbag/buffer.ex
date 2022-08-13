@@ -33,7 +33,7 @@ defmodule Airbag.Buffer do
   @type buffer_name() :: atom()
   @type partition_index() :: pos_integer()
   @type opt() ::
-          {:partitions, pos_integer()}
+          {:partition_count, pos_integer()}
           | {:total_memory_threshold, pos_integer() | :infinity}
           | {:hash_by, (term() -> term())}
           | {:partition_ets_opts, list()}
