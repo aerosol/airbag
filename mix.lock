@@ -1,2 +1,3 @@
 %{
+  "gen_cycle": {:git, "https://github.com/aerosol/gen_cycle.git", "b77f1b252aeccdf5c0ae7dbe2cb1155740ffa54f", [branch: "feat/zero-interval"]},
 }

@@ -245,13 +245,16 @@ defmodule Airbag.Buffer do
 
       :partition_meta_entry ->
         {_, partition_index} = partition_meta_entry(meta_record, :key)
+        ref = partition_meta_entry(meta_record, :ref)
+        size = :ets.info(ref, :size)
 
         partitions =
           Map.put(info.private.partitions, partition_index, %{
             reserve_loc: partition_meta_entry(meta_record, :reserve_loc),
             read_loc: partition_meta_entry(meta_record, :read_loc),
             write_loc: partition_meta_entry(meta_record, :write_loc),
-            ref: partition_meta_entry(meta_record, :ref)
+            ref: ref,
+            size: size
           })
 
         %{info | private: %{partitions: partitions}}

@@ -1,4 +1,4 @@
-defmodule AirbagTest do
+defmodule Airbag.BufferTest do
   use ExUnit.Case
 
   alias Airbag.Buffer
@@ -87,6 +87,7 @@ defmodule AirbagTest do
     assert buffer.private.partitions[1].read_loc == 0
     assert buffer.private.partitions[1].write_loc == 0
     assert buffer.private.partitions[1].reserve_loc == 0
+    assert buffer.private.partitions[1].size == 0
 
     assert {:ok, 1} = Buffer.enqueue(buffer, %{object: :alice})
 

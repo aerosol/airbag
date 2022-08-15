@@ -1,11 +1,11 @@
-defmodule Airbag.MixProject do
+defmodule DemoWeb.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :airbag,
+      app: :demo_web,
       version: "0.1.0",
-      elixir: "~> 1.12",
+      elixir: "~> 1.14-rc",
       start_permanent: Mix.env() == :prod,
       deps: deps()
     ]
@@ -15,12 +15,18 @@ defmodule Airbag.MixProject do
   def application do
     [
       extra_applications: [:logger],
-      mod: {Airbag.Application, []}
+      mod: {DemoWeb.Application, []}
     ]
   end
 
   # Run "mix help deps" to learn about dependencies.
   defp deps do
-    [{:gen_cycle, "~> 1.0", github: "aerosol/gen_cycle", branch: "feat/zero-interval"}]
+    [
+      {:airbag, path: ".."},
+      {:plug_cowboy, "~> 2.0"},
+      {:jason, "~> 1.2"}
+      # {:dep_from_hexpm, "~> 0.3.0"},
+      # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
+    ]
   end
 end
