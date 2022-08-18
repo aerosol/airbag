@@ -113,6 +113,8 @@ defmodule Airbag.Buffer do
   end
 
   def enqueue(buffer = %Buffer{}, term) do
+    start = System.monotonic_time()
+
     dest_partition_index =
       if buffer.partition_count == 1 do
         1
@@ -126,15 +128,32 @@ defmodule Airbag.Buffer do
     partition_table_name = partition_table_name(buffer.name, dest_partition_index)
     meta_table_key = {buffer.name, dest_partition_index}
 
-    if threshold_reached?(partition_table_name, buffer) do
-      {:error, :threshold_reached}
-    else
-      reserve_loc = update(meta_table_key, reserve_write_cmd())
-      :ets.insert(partition_table_name, {reserve_loc, term})
-      update(meta_table_key, publish_write_cmd())
+    result =
+      if threshold_reached?(partition_table_name, buffer) do
+        {:error, :threshold_reached}
+      else
+        reserve_loc = update(meta_table_key, reserve_write_cmd())
+        :ets.insert(partition_table_name, {reserve_loc, term})
+        update(meta_table_key, publish_write_cmd())
 
-      {:ok, dest_partition_index}
-    end
+        {:ok, dest_partition_index}
+      end
+
+    stop = System.monotonic_time()
+
+    :telemetry.execute(
+      [:airbag, :buffer, :enqueue, :stop],
+      %{
+        duration: stop - start,
+        monotonic_time: stop
+      },
+      %{
+        buffer_name: buffer.name,
+        partition_index: dest_partition_index
+      }
+    )
+
+    result
   end
 
   @spec dequeue(t() | buffer_name(), partition_index(), [{:limit, pos_integer()}]) :: list(any())
@@ -145,6 +164,7 @@ defmodule Airbag.Buffer do
   end
 
   def dequeue(buffer_name, partition_index, opts) when is_atom(buffer_name) do
+    start = System.monotonic_time()
     limit = Keyword.get(opts, :limit, 1)
     key = {buffer_name, partition_index}
     partition_table_name = partition_table_name(buffer_name, partition_index)
@@ -163,27 +183,40 @@ defmodule Airbag.Buffer do
 
       data ->
         :ets.select_delete(partition_table_name, match_specs_delete)
+        stop = System.monotonic_time()
+
+        :telemetry.execute(
+          [:airbag, :buffer, :dequeue, :stop],
+          %{
+            duration: stop - start,
+            monotonic_time: stop
+          },
+          %{buffer_name: buffer_name, partition_index: partition_index, limit: limit}
+        )
+
         data
     end
   end
 
   @spec info!(buffer_name(), [{:only, :buffer_meta}]) :: t()
   def info!(buffer_name, opts \\ []) do
-    match_specs_buffer_meta = {{:buffer_meta, buffer_name, :_, :_, :_}, [], [:"$_"]}
+    :telemetry.span([:airbag, :buffer, :info], %{buffer_name: buffer_name}, fn ->
+      match_specs_buffer_meta = {{:buffer_meta, buffer_name, :_, :_, :_}, [], [:"$_"]}
 
-    match_specs_partition_meta =
-      {{:partition_meta_entry, {buffer_name, :_}, :_, :_, :_, :_}, [], [:"$_"]}
+      match_specs_partition_meta =
+        {{:partition_meta_entry, {buffer_name, :_}, :_, :_, :_, :_}, [], [:"$_"]}
 
-    match_specs =
-      case Keyword.get(opts, :only) do
-        nil -> [match_specs_buffer_meta, match_specs_partition_meta]
-        :buffer_meta -> [match_specs_buffer_meta]
+      match_specs =
+        case Keyword.get(opts, :only) do
+          nil -> [match_specs_buffer_meta, match_specs_partition_meta]
+          :buffer_meta -> [match_specs_buffer_meta]
+        end
+
+      case :ets.select(@meta_table_name, match_specs) do
+        [] -> raise "Invalid buffer #{inspect(buffer_name)}"
+        meta -> {to_info(meta), %{}}
       end
-
-    case :ets.select(@meta_table_name, match_specs) do
-      [] -> raise "Invalid buffer #{inspect(buffer_name)}"
-      meta -> to_info(meta)
-    end
+    end)
   end
 
   defp threshold_reached?(_partition_table, %Buffer{total_memory_threshold: :infinity}) do
@@ -191,12 +224,15 @@ defmodule Airbag.Buffer do
   end
 
   defp threshold_reached?(partition_table, %Buffer{
+         name: buffer_name,
          total_memory_threshold: total_memory_threshold,
          partition_count: partition_count
        }) do
-    single_capacity_in_bytes = floor(total_memory_threshold / partition_count)
-    size_in_bytes = :ets.info(partition_table, :memory) * :erlang.system_info(:wordsize)
-    size_in_bytes > single_capacity_in_bytes
+    :telemetry.span([:airbag, :buffer, :threshold_check], %{buffer_name: buffer_name}, fn ->
+      single_capacity_in_bytes = floor(total_memory_threshold / partition_count)
+      size_in_bytes = :ets.info(partition_table, :memory) * :erlang.system_info(:wordsize)
+      {size_in_bytes > single_capacity_in_bytes, %{size_in_bytes: size_in_bytes}}
+    end)
   end
 
   defp partition_table_name(buffer_name, partition_index) do

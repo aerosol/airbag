@@ -21,6 +21,9 @@ defmodule Airbag.MixProject do
 
   # Run "mix help deps" to learn about dependencies.
   defp deps do
-    [{:gen_cycle, "~> 1.0", github: "aerosol/gen_cycle", branch: "feat/zero-interval"}]
+    [
+      {:gen_cycle, "~> 1.0", github: "aerosol/gen_cycle", branch: "feat/zero-interval"},
+      {:telemetry, "~> 1.0"}
+    ]
   end
 end

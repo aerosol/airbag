@@ -37,13 +37,32 @@ defmodule Airbag.Consumer do
   end
 
   @impl true
-  def handle_cycle(state) do
-    case Buffer.dequeue(state.buffer_name, state.partition_index, limit: state.dequeue_limit) do
+  def handle_cycle(
+        %{
+          buffer_name: buffer_name,
+          partition_index: partition_index,
+          dequeue_limit: dequeue_limit
+        } = state
+      ) do
+    case Buffer.dequeue(buffer_name, partition_index, limit: dequeue_limit) do
       [] ->
         {:continue, state}
 
       objects ->
-        process(objects, state.processor)
+        telemetry_metadata = %{
+          buffer_name: buffer_name,
+          partition_index: partition_index,
+          limit: dequeue_limit
+        }
+
+        :telemetry.span(
+          [:airbag, :consumer, :processor],
+          telemetry_metadata,
+          fn ->
+            {process(objects, state.processor), telemetry_metadata}
+          end
+        )
+
         {:continue, state}
     end
   end

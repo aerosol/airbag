@@ -5,6 +5,8 @@ defmodule DemoWeb.Application do
 
   @impl true
   def start(_type, _args) do
+    :ok = Airbag.LogTelemetry.init()
+
     children = [
       Supervisor.child_spec(
         {Airbag.Supervisor,
