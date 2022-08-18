@@ -23,7 +23,8 @@ defmodule Airbag.MixProject do
   defp deps do
     [
       {:gen_cycle, "~> 1.0", github: "aerosol/gen_cycle", branch: "feat/zero-interval"},
-      {:telemetry, "~> 1.0"}
+      {:telemetry, "~> 1.0"},
+      {:ex_doc, "~> 0.27", only: :dev, runtime: false}
     ]
   end
 end
