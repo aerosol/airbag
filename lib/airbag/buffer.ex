@@ -130,7 +130,7 @@ defmodule Airbag.Buffer do
       * Measurement: `%{monotonic_time: monotonic_time, duration: native}`
       * Metadata: none
 
-  ^[1]: https://github.com/duomark/epocxy/blob/master/src/ets_buffer.erl
+  ^[1]: https://github.com/duomark/epocxy/blob/affd1c41aeae256050e2b2f11f2feb3532df8ebd/src/ets_buffer.erl
 
   ^[2]: https://www.erlang.org/blog/scalable-ets-counters/
   """
