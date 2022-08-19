@@ -16,7 +16,8 @@ defmodule DemoWeb.Application do
            consumers_per_partition: 1,
            dequeue_limit: 10_000,
            total_memory_threshold: 1024 * 1024 * 1024,
-           processor: fn _messages -> :timer.sleep(500) end
+           processor: fn _messages -> :timer.sleep(500) end,
+           interval: 500
          }},
         id: DemoBufferSingletonSupervisor
       ),

@@ -32,7 +32,8 @@ defmodule Airbag.Supervisor do
                   buffer_name: Keyword.fetch!(opts, :buffer_name),
                   partition_index: partition_index,
                   dequeue_limit: Keyword.get(opts, :dequeue_limit, 1),
-                  processor: Keyword.fetch!(opts, :processor)
+                  processor: Keyword.fetch!(opts, :processor),
+                  interval: Keyword.get(opts, :interval, 1)
                 ]
               ]
             }
