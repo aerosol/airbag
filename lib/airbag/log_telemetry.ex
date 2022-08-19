@@ -17,9 +17,20 @@ defmodule Airbag.LogTelemetry do
       )
   end
 
+  def handle_event(
+        [:airbag, :buffer, :dequeue, :stop],
+        %{duration: duration, data_items: i},
+        metadata,
+        _config
+      ) do
+    Logger.debug(
+      "[Airbag] buffer.dequeue.stop #{i} data items in #{duration(duration)} for #{inspect(metadata)}"
+    )
+  end
+
   def handle_event([:airbag | rest], %{duration: duration}, metadata, _config) do
     Logger.debug(
-      "[Airbag] #{Enum.join(rest, ".")}: #{duration(duration)} for #{inspect(metadata)}"
+      "[Airbag] #{Enum.join(rest, ".")} in: #{duration(duration)} for #{inspect(metadata)}"
     )
   end
 

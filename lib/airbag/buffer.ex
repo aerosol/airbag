@@ -106,7 +106,7 @@ defmodule Airbag.Buffer do
     * `[:airbag, :buffer, :dequeue, :stop]` - dispatched 
       whenever a list of terms has been retrieved and deleted 
       from a buffer partition.
-      * Measurement: `%{monotonic_time: monotonic_time, duration: native}`
+      * Measurement: `%{monotonic_time: monotonic_time, duration: native, data_items: non_neg_integer}`
       * Metadata: `%{buffer_name: atom, partition_index: pos_integer, limit: pos_integer}`
 
     * `[:airbag, :buffer, :info, :start]` - dispatched 
@@ -312,7 +312,8 @@ defmodule Airbag.Buffer do
           [:airbag, :buffer, :dequeue, :stop],
           %{
             duration: stop - start,
-            monotonic_time: stop
+            monotonic_time: stop,
+            data_items: Enum.count(data)
           },
           %{buffer_name: buffer_name, partition_index: partition_index, limit: limit}
         )
