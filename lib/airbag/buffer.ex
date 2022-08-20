@@ -1,6 +1,6 @@
 defmodule Airbag.Buffer do
   @moduledoc """
-  A FIFO ets buffer implementation based on `ets_buffer`[^1].
+  A FIFO ets buffer implementation based on [`ets_buffer`][1].
 
   Buffer is a storage abstraction that resides in ets tables (RAM)
   under the hood. Therfore, buffers can store arbitrary terms
@@ -15,7 +15,7 @@ defmodule Airbag.Buffer do
   Buffer entries are reserved for reading when dequeuing and
   deleted immediately afterwards, becoming permanently unavailable.
 
-  Main differences to the reference implementation[^1] are:
+  Main differences to the [reference implementation][1] are:
 
     * only FIFO buffer type is exposed
     * buffers can be partitioned (see: "Partitioning" section)
@@ -82,7 +82,7 @@ defmodule Airbag.Buffer do
   To compute each partition memory consumption dynamically, 
   `:ets.info(t, :memory)` is called. This design decision 
   comes with at a performance penalty in case of
-  `decentralized_counters` enabled [^2].
+  `decentralized_counters` [enabled][2].
 
   Depending on your use case, it might be still beneficial
   to keep that cost, as the overall throughput may be still
@@ -130,9 +130,9 @@ defmodule Airbag.Buffer do
       * Measurement: `%{monotonic_time: monotonic_time, duration: native}`
       * Metadata: none
 
-  ^[1]: https://github.com/duomark/epocxy/blob/affd1c41aeae256050e2b2f11f2feb3532df8ebd/src/ets_buffer.erl
+  [1]: https://github.com/duomark/epocxy/blob/affd1c41aeae256050e2b2f11f2feb3532df8ebd/src/ets_buffer.erl
 
-  ^[2]: https://www.erlang.org/blog/scalable-ets-counters/
+  [2]: https://www.erlang.org/blog/scalable-ets-counters/
   """
   require Record
   alias __MODULE__
