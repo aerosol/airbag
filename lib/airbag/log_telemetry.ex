@@ -28,6 +28,17 @@ defmodule Airbag.LogTelemetry do
     )
   end
 
+  def handle_event(
+        [:airbag, :buffer, :threshold_check, :stop],
+        %{duration: duration, size_in_bytes: s},
+        metadata,
+        _config
+      ) do
+    Logger.debug(
+      "[Airbag] buffer.threshold_check.stop #{s} bytes, checked in #{duration(duration)} for #{inspect(metadata)}"
+    )
+  end
+
   def handle_event([:airbag | rest], %{duration: duration}, metadata, _config) do
     Logger.debug(
       "[Airbag] #{Enum.join(rest, ".")} in: #{duration(duration)} for #{inspect(metadata)}"

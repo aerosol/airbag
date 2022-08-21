@@ -129,15 +129,9 @@ defmodule Airbag.Buffer do
       * Measurement: `%{monotonic_time: monotonic_time, duration: native}`
       * Metadata: none
 
-    * `[:airbag, :buffer, :threshold_check, :start]` - dispatched 
-      before checking for partition memory size, when `:total_memory_threshold`
-      is an integer and not `:infinity`
-      * Measurement: `%{monotonic_time: monotonic_time}`
-      * Metadata: none
-
     * `[:airbag, :buffer, :threshold_check, :stop]` - dispatched 
       after memory partition memory size check has completed.
-      * Measurement: `%{monotonic_time: monotonic_time, duration: native}`
+      * Measurement: `%{monotonic_time: monotonic_time, duration: native, size_in_bytes: pos_integer}`
       * Metadata: none
 
   [1]: https://github.com/duomark/epocxy/blob/affd1c41aeae256050e2b2f11f2feb3532df8ebd/src/ets_buffer.erl
@@ -258,15 +252,13 @@ defmodule Airbag.Buffer do
         |> Kernel.+(1)
       end
 
-    partition_table_name = partition_table_name(buffer.name, dest_partition_index)
-    meta_table_key = {buffer.name, dest_partition_index}
-
     result =
-      if threshold_reached?(partition_table_name, buffer) do
+      if threshold_reached?(buffer, dest_partition_index) do
         {:error, :threshold_reached}
       else
+        meta_table_key = {buffer.name, dest_partition_index}
         reserve_loc = update(meta_table_key, reserve_write_cmd())
-        :ets.insert(partition_table_name, {reserve_loc, term})
+        :ets.insert(partition_table_name(buffer.name, dest_partition_index), {reserve_loc, term})
         update(meta_table_key, publish_write_cmd())
 
         {:ok, dest_partition_index}
@@ -353,20 +345,38 @@ defmodule Airbag.Buffer do
     end)
   end
 
-  defp threshold_reached?(_partition_table, %Buffer{total_memory_threshold: :infinity}) do
+  defp threshold_reached?(%Buffer{total_memory_threshold: :infinity}, _) do
     false
   end
 
-  defp threshold_reached?(partition_table, %Buffer{
-         name: buffer_name,
-         total_memory_threshold: total_memory_threshold,
-         partition_count: partition_count
-       }) do
-    :telemetry.span([:airbag, :buffer, :threshold_check], %{buffer_name: buffer_name}, fn ->
-      single_capacity_in_bytes = floor(total_memory_threshold / partition_count)
-      size_in_bytes = :ets.info(partition_table, :memory) * :erlang.system_info(:wordsize)
-      {size_in_bytes > single_capacity_in_bytes, %{size_in_bytes: size_in_bytes}}
-    end)
+  defp threshold_reached?(
+         %Buffer{
+           name: buffer_name,
+           total_memory_threshold: total_memory_threshold,
+           partition_count: partition_count
+         },
+         partition_index
+       ) do
+    start = System.monotonic_time()
+    partition_table = partition_table_name(buffer_name, partition_index)
+    single_capacity_in_bytes = floor(total_memory_threshold / partition_count)
+    size_in_bytes = :ets.info(partition_table, :memory) * :erlang.system_info(:wordsize)
+    result = size_in_bytes > single_capacity_in_bytes
+    stop = System.monotonic_time()
+
+    :telemetry.execute(
+      [:airbag, :buffer, :threshold_check, :stop],
+      %{
+        duration: stop - start,
+        size_in_bytes: size_in_bytes
+      },
+      %{
+        buffer_name: buffer_name,
+        partition_index: partition_index
+      }
+    )
+
+    result
   end
 
   defp partition_table_name(buffer_name, partition_index) do
