@@ -239,7 +239,7 @@ defmodule Airbag.Buffer do
     enqueue(buffer, term)
   end
 
-  def enqueue(buffer = %Buffer{}, term) do
+  def enqueue(%Buffer{} = buffer, term) do
     start = System.monotonic_time()
 
     dest_partition_index =
@@ -284,7 +284,7 @@ defmodule Airbag.Buffer do
   @spec dequeue(t() | buffer_name(), partition_index(), [{:limit, pos_integer()}]) :: list(any())
   def dequeue(buffer_or_buffer_name, partition_index, opts \\ [])
 
-  def dequeue(buffer = %Buffer{}, partition_index, opts) do
+  def dequeue(%Buffer{} = buffer, partition_index, opts) do
     dequeue(buffer.name, partition_index, opts)
   end
 
