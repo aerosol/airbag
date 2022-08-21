@@ -122,7 +122,7 @@ defmodule Airbag.Buffer do
     * `[:airbag, :buffer, :info, :start]` - dispatched 
       whenever `Buffer.info!/2` was called.
       * Measurement: `%{monotonic_time: monotonic_time}`
-      * Metadata: none
+      * Metadata: `%{buffer_name: atom}`
 
     * `[:airbag, :buffer, :info, :stop]` - dispatched 
       whenever `Buffer.info!/2` has finished.
@@ -340,7 +340,7 @@ defmodule Airbag.Buffer do
 
       case :ets.select(@meta_table_name, match_specs) do
         [] -> raise "Invalid buffer #{inspect(buffer_name)}"
-        meta -> {to_info(meta), %{}}
+        meta -> {to_info(meta), %{buffer_name: buffer_name}}
       end
     end)
   end
@@ -367,6 +367,7 @@ defmodule Airbag.Buffer do
     :telemetry.execute(
       [:airbag, :buffer, :threshold_check, :stop],
       %{
+        monotonic_time: stop,
         duration: stop - start,
         size_in_bytes: size_in_bytes
       },

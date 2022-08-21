@@ -1,8 +1,9 @@
 defmodule Airbag.BufferTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: true
 
   alias Airbag.Buffer
   require Airbag.Buffer
+  import ExUnit.CaptureLog
 
   test "initialises the buffer with default opts", %{test: test} do
     buffer = Buffer.new(test)
@@ -165,6 +166,83 @@ defmodule Airbag.BufferTest do
     assert [%{object: :alice}] = Buffer.dequeue(buffer.name, 1)
   end
 
+  describe "telemetry events" do
+    test "enqueue/2 emits enqueue.stop", %{test: test} do
+      Buffer.new(test, partition_count: 1)
+      attach_event_handler(test, [:airbag, :buffer, :enqueue, :stop])
+      Buffer.enqueue(test, :foo)
+
+      assert_received {:telemetry_event, [:airbag, :buffer, :enqueue, :stop], measurements,
+                       metadata}
+
+      assert is_integer(measurements.duration)
+      assert is_integer(measurements.monotonic_time)
+      assert metadata.buffer_name == test
+      assert metadata.partition_index == 1
+    end
+
+    test "dequeue/2 emits dequeue.stop", %{test: test} do
+      buffer = Buffer.new(test, partition_count: 1)
+      Buffer.enqueue(buffer.name, :foo)
+
+      attach_event_handler(test, [:airbag, :buffer, :dequeue, :stop])
+
+      Buffer.dequeue(buffer.name, 1)
+
+      assert_received {:telemetry_event, [:airbag, :buffer, :dequeue, :stop], measurements,
+                       metadata}
+
+      assert is_integer(measurements.duration)
+      assert is_integer(measurements.monotonic_time)
+      assert measurements.data_items == 1
+      assert metadata.buffer_name == test
+      assert metadata.partition_index == 1
+    end
+
+    test "info!/2 emits info.start", %{test: test} do
+      Buffer.new(test, partition_count: 1)
+
+      attach_event_handler(test, [:airbag, :buffer, :info, :start])
+
+      Buffer.info!(test)
+
+      assert_received {:telemetry_event, [:airbag, :buffer, :info, :start], measurements,
+                       metadata}
+
+      assert is_integer(measurements.monotonic_time)
+      assert metadata.buffer_name == test
+    end
+
+    test "info!/2 emits info.stop", %{test: test} do
+      Buffer.new(test, partition_count: 1)
+
+      attach_event_handler(test, [:airbag, :buffer, :info, :stop])
+
+      Buffer.info!(test)
+
+      assert_received {:telemetry_event, [:airbag, :buffer, :info, :stop], measurements, metadata}
+      assert is_integer(measurements.monotonic_time)
+      assert is_integer(measurements.duration)
+      assert metadata.buffer_name == test
+    end
+
+    test "enqueue/2 emits threshold_check.stop", %{test: test} do
+      b = Buffer.new(test, partition_count: 1, total_memory_threshold: 1_000_000)
+
+      attach_event_handler(test, [:airbag, :buffer, :threshold_check, :stop])
+
+      Buffer.enqueue(b, :foo)
+
+      assert_received {:telemetry_event, [:airbag, :buffer, :threshold_check, :stop],
+                       measurements, metadata}
+
+      assert is_integer(measurements.monotonic_time)
+      assert is_integer(measurements.duration)
+      assert metadata.buffer_name == test
+      assert metadata.partition_index == 1
+    end
+  end
+
   defp generate_term(max_size) do
     generate_term([], :erts_debug.flat_size([]), max_size)
   end
@@ -177,5 +255,17 @@ defmodule Airbag.BufferTest do
     list = [?x | list]
     current_size = :erts_debug.flat_size(list)
     generate_term(list, current_size, max_size)
+  end
+
+  defp attach_event_handler(handler_id, event) do
+    test_pid = self()
+
+    event_handler = fn ^event, measurements, metadata, _ ->
+      send(test_pid, {:telemetry_event, event, measurements, metadata})
+    end
+
+    capture_log(fn ->
+      :ok = :telemetry.attach(handler_id, event, event_handler, nil)
+    end)
   end
 end
