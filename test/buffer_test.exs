@@ -182,12 +182,10 @@ defmodule Airbag.BufferTest do
     end
 
     test "dequeue/2 emits dequeue.stop", %{test: test} do
-      buffer = Buffer.new(test, partition_count: 1)
-      Buffer.enqueue(buffer.name, :foo)
-
+      Buffer.new(test, partition_count: 1)
+      Buffer.enqueue(test, :foo)
       attach_event_handler(test, [:airbag, :buffer, :dequeue, :stop])
-
-      Buffer.dequeue(buffer.name, 1)
+      Buffer.dequeue(test, 1)
 
       assert_received {:telemetry_event, [:airbag, :buffer, :dequeue, :stop], measurements,
                        metadata}
@@ -201,9 +199,7 @@ defmodule Airbag.BufferTest do
 
     test "info!/2 emits info.start", %{test: test} do
       Buffer.new(test, partition_count: 1)
-
       attach_event_handler(test, [:airbag, :buffer, :info, :start])
-
       Buffer.info!(test)
 
       assert_received {:telemetry_event, [:airbag, :buffer, :info, :start], measurements,
@@ -215,9 +211,7 @@ defmodule Airbag.BufferTest do
 
     test "info!/2 emits info.stop", %{test: test} do
       Buffer.new(test, partition_count: 1)
-
       attach_event_handler(test, [:airbag, :buffer, :info, :stop])
-
       Buffer.info!(test)
 
       assert_received {:telemetry_event, [:airbag, :buffer, :info, :stop], measurements, metadata}
@@ -227,11 +221,9 @@ defmodule Airbag.BufferTest do
     end
 
     test "enqueue/2 emits threshold_check.stop", %{test: test} do
-      b = Buffer.new(test, partition_count: 1, total_memory_threshold: 1_000_000)
-
+      Buffer.new(test, partition_count: 1, total_memory_threshold: 1_000_000)
       attach_event_handler(test, [:airbag, :buffer, :threshold_check, :stop])
-
-      Buffer.enqueue(b, :foo)
+      Buffer.enqueue(test, :foo)
 
       assert_received {:telemetry_event, [:airbag, :buffer, :threshold_check, :stop],
                        measurements, metadata}
