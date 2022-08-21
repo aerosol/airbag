@@ -71,6 +71,13 @@ defmodule Airbag.Buffer do
   option, expressed in bytes and calculated dynamically using 
   the word size of the host architecture on each write.
 
+  Note that it's possible to exceed the threshold: if current
+  partition size is `Threshold - 1` and a 10 MB term is written,
+  the partition size is now `Threshold - 1 + 10 MB` before any
+  subsequent write is rejected. It is user's responsibility to
+  set the thresholds to a value small enough to be still able
+  to accept last-minute writes of maxium size.
+
   The total memory limit is divided by the number of buffer 
   partitions and checked individually against it, before 
   the enqueue operation can proceed.
@@ -78,6 +85,9 @@ defmodule Airbag.Buffer do
   When user defined memory threshold is reached, an error
   is returned to all `enqueue` requests for the affected
   partition, until the terms are dequeued from it. 
+
+  Threshold values less than 1500 are practically unusable,
+  because an empty ets table can take that space alone.
 
   To compute each partition memory consumption dynamically, 
   `:ets.info(t, :memory)` is called. This design decision 
