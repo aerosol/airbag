@@ -29,7 +29,7 @@ defmodule Airbag.IntegrationTest do
     init_arg = [
       buffer_name: TestBuffer,
       partition_count: 2,
-      total_memory_threshold: 10_000,
+      total_memory_threshold: 100_000,
       processor: fn got -> send(test_pid, {:processed, got}) end
     ]
 
