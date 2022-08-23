@@ -28,14 +28,13 @@ defmodule Airbag.BufferTest do
     buffer =
       Buffer.new(test,
         partition_count: 2,
-        total_memory_threshold: 100,
+        total_memory_threshold: 100_000,
         hash_by: &IO.inspect/1
       )
 
     assert buffer.hash_by == (&IO.inspect/1)
     assert buffer.partition_count == 2
-    # FIXME: values less than 1500 are practically unusable
-    assert buffer.total_memory_threshold == 100
+    assert buffer.total_memory_threshold == 100_000
   end
 
   test "fails to initialise with improper hash_by function" do
@@ -125,19 +124,19 @@ defmodule Airbag.BufferTest do
   end
 
   test "enqueue/2 fails when memory threshold is reached", %{test: test} do
-    threshold = 1500
+    canonical = Buffer.new(:canonical, partition_count: 1)
+
+    canonical_initial_size =
+      :ets.info(canonical.private.partitions[1].ref, :memory) * :erlang.system_info(:wordsize)
+
+    threshold = canonical_initial_size + 1500
 
     buffer = Buffer.new(test, partition_count: 1, total_memory_threshold: threshold)
 
     assert {:ok, _} = Buffer.enqueue(buffer, %{object: :smol1})
 
-    initial_size =
-      :ets.info(buffer.private.partitions[1].ref, :memory) * :erlang.system_info(:wordsize)
+    filler = generate_term(1500)
 
-    filler = generate_term(threshold - initial_size)
-    flat_term_size = :erts_debug.flat_size(filler)
-
-    assert initial_size + flat_term_size == 1500
     assert {:ok, _} = Buffer.enqueue(buffer, filler)
 
     assert {:error, :threshold_reached} = Buffer.enqueue(buffer, %{object: :smol2})

@@ -37,7 +37,7 @@ defmodule Airbag.Buffer do
   `:partition_index`.
 
   Each partition entry contains one term passed to the `enqueue`
-  operation. Multiple entries can be dequeued from a specific 
+  operation. Multiple entries can be dequeued from a specific
   given partition in one shot.
 
   In other words, clients performing reads must be aware
@@ -64,11 +64,11 @@ defmodule Airbag.Buffer do
   # Memory Limits
 
   By default, buffer storage size is limited by the RAM available.
-  In this scenario however the VM node can crash when too much 
+  In this scenario however the VM node can crash when too much
   memory is consumed.
 
   Users can configure their buffers with `:total_memory_threshold`
-  option, expressed in bytes and calculated dynamically using 
+  option, expressed in bytes and calculated dynamically using
   the word size of the host architecture on each write.
 
   Note that it's possible to exceed the threshold: if current
@@ -78,19 +78,26 @@ defmodule Airbag.Buffer do
   set the thresholds to a value small enough to be still able
   to accept last-minute writes of maxium size.
 
-  The total memory limit is divided by the number of buffer 
-  partitions and checked individually against it, before 
+  The total memory limit is divided by the number of buffer
+  partitions and checked individually against it, before
   the enqueue operation can proceed.
 
   When user defined memory threshold is reached, an error
   is returned to all `enqueue` requests for the affected
-  partition, until the terms are dequeued from it. 
+  partition, until the terms are dequeued from it.
 
-  Threshold values less than 1500 are practically unusable,
+  An empty ets table alone can allocate an arbitrary amount
+  of initial memory -- this is platform specific. To avoid buffer
+  lock-out, the threshold values must be always greater
+  than the size of an empty buffer. The buffer intialization
+  interface will try to prevent that from happening by raising
+  a runtime exception on memory threshold supplied too small.
+
+  Threshold values up to a machine-specific number are practically unusable,
   because an empty ets table can take that space alone.
 
-  To compute each partition memory consumption dynamically, 
-  `:ets.info(t, :memory)` is called. This design decision 
+  To compute each partition memory consumption dynamically,
+  `:ets.info(t, :memory)` is called. This design decision
   comes with at a performance penalty in case of
   `decentralized_counters` [enabled][2].
 
@@ -98,38 +105,38 @@ defmodule Airbag.Buffer do
   to keep that cost, as the overall throughput may be still
   much better than with `decentralized_counters` set to `false`.
 
-  Telemetry events (see below) emitted by the library 
-  should be a helpful starting point in evaluating 
+  Telemetry events (see below) emitted by the library
+  should be a helpful starting point in evaluating
   specific setup decisions.
 
   # Instrumentation
 
-  Airbag uses the `:telemetry` library for instrumentation. 
-  The following events are published by `Airbag.Buffer` with 
+  Airbag uses the `:telemetry` library for instrumentation.
+  The following events are published by `Airbag.Buffer` with
   the following measurements and metadata:
 
-    * `[:airbag, :buffer, :enqueue, :stop]` - dispatched 
+    * `[:airbag, :buffer, :enqueue, :stop]` - dispatched
       whenever a term has been stored in a buffer partition.
       * Measurement: `%{monotonic_time: monotonic_time, duration: native}`
       * Metadata: `%{buffer_name: atom, partition_index: pos_integer}`
 
-    * `[:airbag, :buffer, :dequeue, :stop]` - dispatched 
-      whenever a list of terms has been retrieved and deleted 
+    * `[:airbag, :buffer, :dequeue, :stop]` - dispatched
+      whenever a list of terms has been retrieved and deleted
       from a buffer partition.
       * Measurement: `%{monotonic_time: monotonic_time, duration: native, data_items: non_neg_integer}`
       * Metadata: `%{buffer_name: atom, partition_index: pos_integer, limit: pos_integer}`
 
-    * `[:airbag, :buffer, :info, :start]` - dispatched 
+    * `[:airbag, :buffer, :info, :start]` - dispatched
       whenever `Buffer.info!/2` was called.
       * Measurement: `%{monotonic_time: monotonic_time}`
       * Metadata: `%{buffer_name: atom}`
 
-    * `[:airbag, :buffer, :info, :stop]` - dispatched 
+    * `[:airbag, :buffer, :info, :stop]` - dispatched
       whenever `Buffer.info!/2` has finished.
       * Measurement: `%{monotonic_time: monotonic_time, duration: native}`
       * Metadata: none
 
-    * `[:airbag, :buffer, :threshold_check, :stop]` - dispatched 
+    * `[:airbag, :buffer, :threshold_check, :stop]` - dispatched
       after memory partition memory size check has completed.
       * Measurement: `%{monotonic_time: monotonic_time, duration: native, size_in_bytes: pos_integer}`
       * Metadata: none
@@ -225,7 +232,8 @@ defmodule Airbag.Buffer do
       write_partition_meta(
         buffer_name,
         partition_count,
-        partition_ets_opts
+        partition_ets_opts,
+        total_memory_threshold
       )
 
     to_info(buffer_meta, partitions_meta)
@@ -384,12 +392,26 @@ defmodule Airbag.Buffer do
     Module.concat(buffer_name, "P#{partition_index}")
   end
 
-  defp write_partition_meta(buffer_name, partitions, ets_opts)
-       when is_integer(partitions) and partitions > 0 and is_list(ets_opts) do
-    1..partitions
+  defp write_partition_meta(buffer_name, partition_count, ets_opts, total_memory_threshold)
+       when is_integer(partition_count) and partition_count > 0 and is_list(ets_opts) do
+    1..partition_count
     |> Enum.map(fn partition_index ->
       partition_table_name = partition_table_name(buffer_name, partition_index)
       ^partition_table_name = :ets.new(partition_table_name, ets_opts)
+
+      if is_integer(total_memory_threshold) do
+        empty_partition_table_size =
+          :ets.info(partition_table_name, :memory) * :erlang.system_info(:wordsize)
+
+        partition_memory_threshold = floor(total_memory_threshold / partition_count)
+
+        if empty_partition_table_size >= partition_memory_threshold do
+          raise """
+          Failed to create usable buffer partition with total_memory_threshold=#{total_memory_threshold} bytes.
+          An empty partition table size is #{empty_partition_table_size} bytes.
+          """
+        end
+      end
 
       partition_meta_entry =
         partition_meta_entry(
