@@ -37,6 +37,14 @@ defmodule Airbag.BufferTest do
     assert buffer.total_memory_threshold == 100_000
   end
 
+  test "fails to initialise with total_memory_threshold too small", %{test: test} do
+    assert_raise RuntimeError,
+                 ~r/^Failed to create usable buffer partition with total_memory_threshold=1 bytes.\nAn empty partition table size is \d+ bytes.\n$/,
+                 fn ->
+                   Buffer.new(test, total_memory_threshold: 1)
+                 end
+  end
+
   test "fails to initialise with improper hash_by function" do
     assert_raise RuntimeError,
                  ":hash_by must be a function of arity 1",
