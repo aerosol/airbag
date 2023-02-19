@@ -30,7 +30,7 @@ defmodule Airbag.MixProject do
   defp package() do
     [
       maintainers: ["Adam Rutkowski"],
-      licenses: ["Apache 2.0"],
+      licenses: ["Apache-2.0"],
       links: %{"GitHub" => "https://github.com/aerosol/airbag"},
       description: "Partitioned FIFO ets buffer with optional memory limit"
     ]
