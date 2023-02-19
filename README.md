@@ -5,7 +5,7 @@
 A FIFO ets buffer implementation based on [`ets_buffer`][1].
 
 Buffer is a storage abstraction that resides in ets tables (RAM)
-under the hood. Therfore, buffers can store arbitrary terms
+under the hood. Therefore, buffers can store arbitrary terms
 (e.g. maps, structs, functions - literally `any()`)
 and are designed for concurrent access with a simple locking
 mechanism ensuring serializability.
@@ -78,7 +78,7 @@ partition size is `Threshold - 1` and a 10 MB term is written,
 the partition size is now `Threshold - 1 + 10 MB` before any
 subsequent write is rejected. It is user's responsibility to
 set the thresholds to a value small enough to be still able
-to accept last-minute writes of maxium size.
+to accept last-minute writes of maximum size.
 
 The total memory limit is divided by the number of buffer
 partitions and checked individually against it, before
@@ -91,7 +91,7 @@ partition, until the terms are dequeued from it.
 An empty ets table alone can allocate an arbitrary amount
 of initial memory -- this is platform specific. To avoid buffer
 lock-out, the threshold values must be always greater
-than the size of an empty buffer. The buffer intialization
+than the size of an empty buffer. The buffer initialization
 interface will try to prevent that from happening by raising
 a runtime exception on memory threshold supplied too small.
 

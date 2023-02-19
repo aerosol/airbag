@@ -32,7 +32,7 @@ defmodule Airbag.Consumer do
     true = is_function(processor, 1)
     %{partition_count: partition_count} = Buffer.info!(buffer_name)
     true = partition_index <= partition_count
-    Logger.debug("Initalized Airbag Consumer: #{inspect(state)}")
+    Logger.debug("Initialized Airbag Consumer: #{inspect(state)}")
     {:ok, {interval, state}}
   end
 
