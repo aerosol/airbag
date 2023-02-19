@@ -1,6 +1,4 @@
 defmodule Airbag.Buffer do
-  @moduledoc false
-
   require Record
   alias __MODULE__
 
