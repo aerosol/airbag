@@ -7,11 +7,11 @@ defmodule Airbag.MixProject do
       version: "0.1.0",
       elixir: "~> 1.12",
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+      package: package()
     ]
   end
 
-  # Run "mix help compile.app" to learn about applications.
   def application do
     [
       extra_applications: [:logger],
@@ -19,12 +19,20 @@ defmodule Airbag.MixProject do
     ]
   end
 
-  # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
       {:gen_cycle, "~> 1.0"},
       {:telemetry, "~> 1.0"},
       {:ex_doc, "~> 0.27", only: :dev, runtime: false}
+    ]
+  end
+
+  defp package() do
+    [
+      maintainers: ["Adam Rutkowski"],
+      licenses: ["Apache 2.0"],
+      links: %{"GitHub" => "https://github.com/aerosol/airbag"},
+      description: "Partitioned FIFO ets buffer with optional memory limit"
     ]
   end
 end
