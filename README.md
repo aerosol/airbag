@@ -1,5 +1,35 @@
 # airbag
 
+## Up and running quickly
+
+Add buffer/consumer definition to your application supervisor tree:
+
+```elixir
+ children = [
+      {Airbag,
+       [
+         buffer_name: SomeBufferName,
+         partition_count: 1,
+         consumers_per_partition: 1,
+         dequeue_limit: 10_000,
+         total_memory_threshold: 1024 * 1024 * 1024, # default is :infinity
+         processor: fn messages -> 
+           IO.puts("Processing: #{inspect(messages)}") 
+           :timer.sleep(500) 
+         end,
+         interval: :timer.seconds(10)
+       ]},
+       ...
+```
+
+And enqueue items as you please:
+
+```elixir
+Airbag.Buffer.enqueue(SomeBufferName, "some term")
+```
+
+The items will be processed in chunks of max 10 000 every 10 seconds as per the child specs above.
+
 <!-- MDOC !-->
 
 A FIFO ets buffer implementation based on [`ets_buffer`][1].
