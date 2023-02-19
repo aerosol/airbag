@@ -1,5 +1,7 @@
 # airbag
 
+![](https://media.giphy.com/media/UX3xnMG6pXEs9Njkl5/giphy.gif)
+
 ## Up and running quickly
 
 Add buffer/consumer definition to your application supervisor tree:
