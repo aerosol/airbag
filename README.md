@@ -39,7 +39,7 @@ The items will be processed in chunks of max 10 000 every 10 seconds as per the 
  
 --- 
 
-# Synopsis
+## Synopsis
  
 <!-- MDOC !-->
 
