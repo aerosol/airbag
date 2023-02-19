@@ -1,8 +1,11 @@
 # airbag
 
-![](https://media.giphy.com/media/UX3xnMG6pXEs9Njkl5/giphy.gif)
 
 ## Up and running quickly
+
+**For the impatient:** <details>
+
+![](https://media.giphy.com/media/UX3xnMG6pXEs9Njkl5/giphy.gif)
 
 Add buffer/consumer definition to your application supervisor tree:
 
@@ -32,6 +35,10 @@ Airbag.Buffer.enqueue(SomeBufferName, "some term")
 
 The items will be processed in chunks of max 10 000 every 10 seconds as per the child specs above.
 
+</details> 
+ 
+--- 
+ 
 <!-- MDOC !-->
 
 A FIFO ets buffer implementation based on [`ets_buffer`][1].
