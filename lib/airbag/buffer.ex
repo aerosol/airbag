@@ -2,9 +2,6 @@ defmodule Airbag.Buffer do
   require Record
   alias __MODULE__
 
-  # TODO: option for periodic sampling
-  # TODO: telemetry integration for watermarks
-
   @default_hash_by &Function.identity/1
 
   defstruct [
@@ -12,6 +9,7 @@ defmodule Airbag.Buffer do
     :partition_count,
     total_memory_threshold: :infinity,
     hash_by: @default_hash_by,
+    mode: :any,
     private: %{
       partitions: %{}
     }
@@ -20,11 +18,13 @@ defmodule Airbag.Buffer do
   @type t :: %Buffer{}
   @type buffer_name() :: atom()
   @type partition_index() :: pos_integer()
+  @type mode() :: :any | :counters
   @type opt() ::
           {:partition_count, pos_integer()}
           | {:total_memory_threshold, pos_integer() | :infinity}
           | {:hash_by, (term() -> term())}
           | {:partition_ets_opts, list()}
+          | {:mode, mode()}
   @type opts() :: [opt()]
 
   @default_partition_table_opts [
@@ -43,7 +43,8 @@ defmodule Airbag.Buffer do
       :buffer_name,
       :partition_count,
       total_memory_threshold: :infinity,
-      hash_by: @default_hash_by
+      hash_by: @default_hash_by,
+      mode: :any
     ]
   )
 
@@ -58,6 +59,10 @@ defmodule Airbag.Buffer do
     ]
   )
 
+  defmodule Counter do
+    defstruct bucket: nil, inc: 1, default: 0, data: nil
+  end
+
   @spec new(buffer_name(), opts()) :: t()
   def new(buffer_name, opts \\ []) do
     true =
@@ -71,12 +76,15 @@ defmodule Airbag.Buffer do
     hash_by = Keyword.get(opts, :hash_by, @default_hash_by)
     is_function(hash_by, 1) || raise ":hash_by must be a function of arity 1"
 
+    mode = Keyword.get(opts, :mode, :any)
+
     buffer_meta =
       buffer_meta(
         buffer_name: buffer_name,
         partition_count: partition_count,
         total_memory_threshold: total_memory_threshold,
-        hash_by: hash_by
+        hash_by: hash_by,
+        mode: mode
       )
 
     :ets.insert_new(@meta_table_name, buffer_meta) ||
@@ -119,9 +127,33 @@ defmodule Airbag.Buffer do
         {:error, :threshold_reached}
       else
         meta_table_key = {buffer.name, dest_partition_index}
-        reserve_loc = update(meta_table_key, reserve_write_cmd())
-        :ets.insert(partition_table_name(buffer.name, dest_partition_index), {reserve_loc, term})
-        update(meta_table_key, publish_write_cmd())
+
+        case term do
+          %Counter{bucket: bucket, inc: inc, default: default, data: data} ->
+            reserve_loc =
+              update(meta_table_key, reserve_counter_cmd(bucket))
+              |> IO.inspect(label: :reserve_loc_counter)
+
+            :ets.update_counter(
+              partition_table_name(buffer.name, dest_partition_index),
+              {reserve_loc, data},
+              {2, inc},
+              {{reserve_loc, data}, default}
+            )
+
+            write_loc = update(meta_table_key, get_write_cmd())
+            update(meta_table_key, publish_write_counter_cmd(bucket, write_loc))
+
+          _ ->
+            reserve_loc = update(meta_table_key, reserve_write_cmd())
+
+            :ets.insert(
+              partition_table_name(buffer.name, dest_partition_index),
+              {reserve_loc, term}
+            )
+
+            update(meta_table_key, publish_write_cmd())
+        end
 
         {:ok, dest_partition_index}
       end
@@ -157,12 +189,30 @@ defmodule Airbag.Buffer do
     partition_table_name = partition_table_name(buffer_name, partition_index)
 
     write_loc = update(key, get_write_cmd())
-    [start_read_loc, end_read_loc] = update(key, reserve_read_cmd(write_loc, limit))
 
-    match = {:"$1", :"$2"}
-    guard = [{:andalso, {:>, :"$1", start_read_loc}, {:"=<", :"$1", end_read_loc}}]
-    match_specs_read = [{match, guard, [:"$2"]}]
-    match_specs_delete = [{match, guard, [true]}]
+    [start_read_loc, end_read_loc] =
+      update(key, reserve_read_cmd(write_loc, limit))
+      |> IO.inspect(label: :reading_from_to)
+
+    match_for_terms = {:"$1", :"$2"}
+    guard_for_terms = [{:andalso, {:>, :"$1", start_read_loc}, {:"=<", :"$1", end_read_loc}}]
+
+    match_for_counters = {{:"$1", :"$2"}, :"$3"}
+
+    guard_for_counters = [
+      {:andalso, {:andalso, {:is_integer, :"$1"}, {:>, :"$1", start_read_loc}},
+       {:"=<", :"$1", end_read_loc}}
+    ]
+
+    match_specs_read = [
+      {match_for_terms, guard_for_terms, [:"$2"]},
+      {match_for_counters, guard_for_counters, [{{:"$3", :"$2"}}]}
+    ]
+
+    match_specs_delete = [
+      {match_for_terms, guard_for_terms, [true]},
+      {match_for_counters, guard_for_counters, [true]}
+    ]
 
     case :ets.select(partition_table_name, match_specs_read) do
       [] ->
@@ -297,7 +347,8 @@ defmodule Airbag.Buffer do
           | name: buffer_meta(meta_record, :buffer_name),
             partition_count: buffer_meta(meta_record, :partition_count),
             total_memory_threshold: buffer_meta(meta_record, :total_memory_threshold),
-            hash_by: buffer_meta(meta_record, :hash_by)
+            hash_by: buffer_meta(meta_record, :hash_by),
+            mode: buffer_meta(meta_record, :mode)
         }
 
       :partition_meta_entry ->
@@ -328,8 +379,23 @@ defmodule Airbag.Buffer do
 
   defp reserve_write_cmd(), do: {partition_meta_entry(:reserve_loc) + 1, 1}
 
+  defp reserve_counter_cmd(bucket) do
+    {partition_meta_entry(:reserve_loc) + 1, bucket, bucket, bucket}
+  end
+
   defp publish_write_cmd(),
     do: [{partition_meta_entry(:write_loc) + 1, 1}, {partition_meta_entry(:read_loc) + 1, 0}]
+
+  defp publish_write_counter_cmd(bucket, write_loc) do
+    if write_loc > bucket do
+      [{partition_meta_entry(:write_loc) + 1, 0}]
+    else
+      [
+        {partition_meta_entry(:write_loc) + 1, bucket},
+        {partition_meta_entry(:read_loc) + 1, 0}
+      ]
+    end
+  end
 
   defp get_write_cmd(),
     do: {partition_meta_entry(:write_loc) + 1, 0}

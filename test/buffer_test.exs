@@ -11,6 +11,7 @@ defmodule Airbag.BufferTest do
     schedulers = System.schedulers_online()
     assert map_size(buffer.private.partitions) == schedulers
     assert buffer.partition_count == schedulers
+    assert buffer.mode == :any
     identity_fn = &Function.identity/1
 
     assert buffer.hash_by == identity_fn
@@ -103,6 +104,35 @@ defmodule Airbag.BufferTest do
     assert buffer.private.partitions[1].read_loc == 0
     assert buffer.private.partitions[1].write_loc == 1
     assert buffer.private.partitions[1].reserve_loc == 1
+  end
+
+  test "enqueue buffer", %{test: test} do
+    buffer = Buffer.new(test, partition_count: 1)
+
+    name = buffer.name
+
+    buffer = Buffer.info!(name)
+    IO.inspect(buffer.private.partitions[1], label: :pre)
+
+    counter = %Buffer.Counter{bucket: 1024, data: %{metric: "foo", node: "bar", bucket: 1024}}
+    assert {:ok, 1} = Buffer.enqueue(buffer, counter)
+    assert {:ok, 1} = Buffer.enqueue(buffer, counter)
+
+    counter = %Buffer.Counter{bucket: 1024, data: %{metric: "foo", node: "barz", bucket: 1024}}
+    assert {:ok, 1} = Buffer.enqueue(buffer, counter)
+
+    counter = %Buffer.Counter{bucket: 2024, data: %{metric: "foo", node: "barz", bucket: 2024}}
+    assert {:ok, 1} = Buffer.enqueue(buffer, counter)
+
+    counter = %Buffer.Counter{bucket: 1024, data: %{metric: "foo", node: "bar", bucket: 1024}}
+    assert {:ok, 1} = Buffer.enqueue(buffer, counter)
+
+    buffer = Buffer.info!(name)
+    IO.inspect(buffer.private.partitions[1], label: :post)
+
+    :ets.tab2list(buffer.private.partitions[1].ref) |> IO.inspect(label: :dump)
+
+    assert [^counter] = Buffer.dequeue(buffer, 1, limit: 4000)
   end
 
   test "enqueue/2 routes to partitions", %{test: test} do

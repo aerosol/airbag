@@ -23,6 +23,7 @@ defmodule Airbag.MixProject do
     [
       {:gen_cycle, "~> 1.0"},
       {:telemetry, "~> 1.0"},
+      {:ex2ms, "~> 1.0"},
       {:ex_doc, "~> 0.27", only: :dev, runtime: false}
     ]
   end
