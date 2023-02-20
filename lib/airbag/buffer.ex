@@ -61,6 +61,14 @@ defmodule Airbag.Buffer do
 
   defmodule Counter do
     defstruct bucket: nil, inc: 1, default: 0, data: nil
+
+    def new(attrs) do
+      counter = struct!(__MODULE__, attrs)
+      is_integer(counter.bucket) || raise "Counter :bucket must be an integer"
+      is_integer(counter.inc) || raise "Counter :inc must be an integer"
+      is_integer(counter.default) || raise "Counter :default must be an integer"
+      counter
+    end
   end
 
   @spec new(buffer_name(), opts()) :: t()
@@ -77,6 +85,7 @@ defmodule Airbag.Buffer do
     is_function(hash_by, 1) || raise ":hash_by must be a function of arity 1"
 
     mode = Keyword.get(opts, :mode, :any)
+    mode in [:any, :counters] || raise ":mode must be either :any or :counters"
 
     buffer_meta =
       buffer_meta(
@@ -126,35 +135,7 @@ defmodule Airbag.Buffer do
       if threshold_reached?(buffer, dest_partition_index) do
         {:error, :threshold_reached}
       else
-        meta_table_key = {buffer.name, dest_partition_index}
-
-        case term do
-          %Counter{bucket: bucket, inc: inc, default: default, data: data} ->
-            reserve_loc =
-              update(meta_table_key, reserve_counter_cmd(bucket))
-              |> IO.inspect(label: :reserve_loc_counter)
-
-            :ets.update_counter(
-              partition_table_name(buffer.name, dest_partition_index),
-              {reserve_loc, data},
-              {2, inc},
-              {{reserve_loc, data}, default}
-            )
-
-            write_loc = update(meta_table_key, get_write_cmd())
-            update(meta_table_key, publish_write_counter_cmd(bucket, write_loc))
-
-          _ ->
-            reserve_loc = update(meta_table_key, reserve_write_cmd())
-
-            :ets.insert(
-              partition_table_name(buffer.name, dest_partition_index),
-              {reserve_loc, term}
-            )
-
-            update(meta_table_key, publish_write_cmd())
-        end
-
+        do_enqueue(buffer, dest_partition_index, term)
         {:ok, dest_partition_index}
       end
 
@@ -239,7 +220,7 @@ defmodule Airbag.Buffer do
   @spec info!(buffer_name(), [{:only, :buffer_meta}]) :: t()
   def info!(buffer_name, opts \\ []) do
     :telemetry.span([:airbag, :buffer, :info], %{buffer_name: buffer_name}, fn ->
-      match_specs_buffer_meta = {{:buffer_meta, buffer_name, :_, :_, :_}, [], [:"$_"]}
+      match_specs_buffer_meta = {{:buffer_meta, buffer_name, :_, :_, :_, :_}, [], [:"$_"]}
 
       match_specs_partition_meta =
         {{:partition_meta_entry, {buffer_name, :_}, :_, :_, :_, :_}, [], [:"$_"]}
@@ -405,4 +386,48 @@ defmodule Airbag.Buffer do
       {partition_meta_entry(:read_loc) + 1, 0},
       {partition_meta_entry(:read_loc) + 1, num_items, write_loc - 1, write_loc}
     ]
+
+  defp do_enqueue(%__MODULE__{mode: :any}, _dest_partition_index, %Counter{} = counter) do
+    raise "Cannot enqueue counters in buffer mode :any; use buffer mode :counter to enqueue #{inspect(counter)}"
+  end
+
+  defp do_enqueue(%__MODULE__{mode: :counters} = buffer, dest_partition_index, %Counter{
+         bucket: bucket,
+         inc: inc,
+         default: default,
+         data: data
+       }) do
+    meta_table_key = {buffer.name, dest_partition_index}
+
+    reserve_loc =
+      update(meta_table_key, reserve_counter_cmd(bucket))
+      |> IO.inspect(label: :reserve_loc_counter)
+
+    :ets.update_counter(
+      partition_table_name(buffer.name, dest_partition_index),
+      {reserve_loc, data},
+      {2, inc},
+      {{reserve_loc, data}, default}
+    )
+
+    write_loc = update(meta_table_key, get_write_cmd())
+    update(meta_table_key, publish_write_counter_cmd(bucket, write_loc))
+  end
+
+  defp do_enqueue(%__MODULE__{mode: :counters}, _dest_partition_index, not_a_counter) do
+    raise "Cannot enqueue non-counters in buffer mode :counters; use mode :any to enqueue #{inspect(not_a_counter)}"
+  end
+
+  defp do_enqueue(%__MODULE__{mode: :any} = buffer, dest_partition_index, term) do
+    meta_table_key = {buffer.name, dest_partition_index}
+
+    reserve_loc = update(meta_table_key, reserve_write_cmd())
+
+    :ets.insert(
+      partition_table_name(buffer.name, dest_partition_index),
+      {reserve_loc, term}
+    )
+
+    update(meta_table_key, publish_write_cmd())
+  end
 end

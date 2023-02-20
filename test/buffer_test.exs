@@ -5,202 +5,220 @@ defmodule Airbag.BufferTest do
   require Airbag.Buffer
   import ExUnit.CaptureLog
 
-  test "initialises the buffer with default opts", %{test: test} do
-    buffer = Buffer.new(test)
+  describe "init" do
+    test "initialises the buffer with default opts", %{test: test} do
+      buffer = Buffer.new(test)
 
-    schedulers = System.schedulers_online()
-    assert map_size(buffer.private.partitions) == schedulers
-    assert buffer.partition_count == schedulers
-    assert buffer.mode == :any
-    identity_fn = &Function.identity/1
+      schedulers = System.schedulers_online()
+      assert map_size(buffer.private.partitions) == schedulers
+      assert buffer.partition_count == schedulers
+      assert buffer.mode == :any
+      identity_fn = &Function.identity/1
 
-    assert buffer.hash_by == identity_fn
-    assert buffer.name
+      assert buffer.hash_by == identity_fn
+      assert buffer.name
 
-    assert Enum.all?(buffer.private.partitions, fn {partition_index, partition} ->
-             assert is_integer(partition_index)
-             assert partition.reserve_loc == 0
-             assert partition.read_loc == 0
-             assert partition.write_loc == 0
-           end)
-  end
+      assert Enum.all?(buffer.private.partitions, fn {partition_index, partition} ->
+               assert is_integer(partition_index)
+               assert partition.reserve_loc == 0
+               assert partition.read_loc == 0
+               assert partition.write_loc == 0
+             end)
+    end
 
-  test "initialises the buffer with custom opts", %{test: test} do
-    buffer =
-      Buffer.new(test,
-        partition_count: 2,
-        total_memory_threshold: 100_000,
-        hash_by: &IO.inspect/1
-      )
+    test "initialises the buffer with custom opts", %{test: test} do
+      buffer =
+        Buffer.new(test,
+          partition_count: 2,
+          total_memory_threshold: 100_000,
+          hash_by: &IO.inspect/1,
+          mode: :counters
+        )
 
-    assert buffer.hash_by == (&IO.inspect/1)
-    assert buffer.partition_count == 2
-    assert buffer.total_memory_threshold == 100_000
-  end
+      assert buffer.hash_by == (&IO.inspect/1)
+      assert buffer.partition_count == 2
+      assert buffer.total_memory_threshold == 100_000
+      assert buffer.mode == :counters
+    end
 
-  test "fails to initialise with total_memory_threshold too small", %{test: test} do
-    assert_raise RuntimeError,
-                 ~r/^Failed to create usable buffer partition with total_memory_threshold=1 bytes.\nAn empty partition table size is \d+ bytes.\n$/,
-                 fn ->
-                   Buffer.new(test, total_memory_threshold: 1)
-                 end
-  end
+    test "fails to initialise with total_memory_threshold too small", %{test: test} do
+      assert_raise RuntimeError,
+                   ~r/^Failed to create usable buffer partition with total_memory_threshold=1 bytes.\nAn empty partition table size is \d+ bytes.\n$/,
+                   fn ->
+                     Buffer.new(test, total_memory_threshold: 1)
+                   end
+    end
 
-  test "fails to initialise with improper hash_by function" do
-    assert_raise RuntimeError,
-                 ":hash_by must be a function of arity 1",
-                 fn ->
-                   Buffer.new(TestBuffer, hash_by: :moo)
-                 end
+    test "fails to initialise with improper hash_by function" do
+      assert_raise RuntimeError,
+                   ":hash_by must be a function of arity 1",
+                   fn ->
+                     Buffer.new(TestBuffer, hash_by: :moo)
+                   end
 
-    assert_raise RuntimeError,
-                 ":hash_by must be a function of arity 1",
-                 fn ->
-                   Buffer.new(TestBuffer, hash_by: fn _, _ -> :moo end)
-                 end
-  end
+      assert_raise RuntimeError,
+                   ":hash_by must be a function of arity 1",
+                   fn ->
+                     Buffer.new(TestBuffer, hash_by: fn _, _ -> :moo end)
+                   end
+    end
 
-  test "allows to initialise >1 buffers" do
-    assert Buffer.new(TestBuffer1, partition_count: 1)
-    assert Buffer.new(TestBuffer2, partition_count: 1)
-  end
+    test "allows to initialise >1 buffers" do
+      assert Buffer.new(TestBuffer1, partition_count: 1)
+      assert Buffer.new(TestBuffer2, partition_count: 1)
+    end
 
-  test "fails to initialise the same buffer name twice" do
-    Buffer.new(TestBuffer, partition_count: 1)
+    test "fails to initialise the same buffer name twice" do
+      Buffer.new(TestBuffer, partition_count: 1)
 
-    assert_raise RuntimeError,
-                 "Buffer TestBuffer already exists",
-                 fn ->
-                   Buffer.new(TestBuffer, partition_count: 2)
-                 end
-  end
-
-  test "info!/1 retrieves buffer", %{test: test} do
-    assert buffer = Buffer.new(test)
-    assert ^buffer = Buffer.info!(test)
-  end
-
-  test "info/2 optionally retrieves only buffer meta", %{test: test} do
-    Buffer.new(test)
-    assert %Buffer{} = buffer = Buffer.info!(test, only: :buffer_meta)
-    assert buffer.partition_count == System.schedulers_online()
-    refute map_size(buffer.private) == 0
-  end
-
-  test "enqueue/2 bumps read/reserve locations", %{test: test} do
-    buffer = Buffer.new(test, partition_count: 1)
-
-    name = buffer.name
-
-    buffer = Buffer.info!(name)
-    assert buffer.private.partitions[1].read_loc == 0
-    assert buffer.private.partitions[1].write_loc == 0
-    assert buffer.private.partitions[1].reserve_loc == 0
-    assert buffer.private.partitions[1].size == 0
-
-    assert {:ok, 1} = Buffer.enqueue(buffer, %{object: :alice})
-
-    buffer = Buffer.info!(name)
-    assert buffer.private.partitions[1].read_loc == 0
-    assert buffer.private.partitions[1].write_loc == 1
-    assert buffer.private.partitions[1].reserve_loc == 1
-  end
-
-  test "enqueue buffer", %{test: test} do
-    buffer = Buffer.new(test, partition_count: 1)
-
-    name = buffer.name
-
-    buffer = Buffer.info!(name)
-    IO.inspect(buffer.private.partitions[1], label: :pre)
-
-    counter = %Buffer.Counter{bucket: 1024, data: %{metric: "foo", node: "bar", bucket: 1024}}
-    assert {:ok, 1} = Buffer.enqueue(buffer, counter)
-    assert {:ok, 1} = Buffer.enqueue(buffer, counter)
-
-    counter = %Buffer.Counter{bucket: 1024, data: %{metric: "foo", node: "barz", bucket: 1024}}
-    assert {:ok, 1} = Buffer.enqueue(buffer, counter)
-
-    counter = %Buffer.Counter{bucket: 2024, data: %{metric: "foo", node: "barz", bucket: 2024}}
-    assert {:ok, 1} = Buffer.enqueue(buffer, counter)
-
-    counter = %Buffer.Counter{bucket: 1024, data: %{metric: "foo", node: "bar", bucket: 1024}}
-    assert {:ok, 1} = Buffer.enqueue(buffer, counter)
-
-    buffer = Buffer.info!(name)
-    IO.inspect(buffer.private.partitions[1], label: :post)
-
-    :ets.tab2list(buffer.private.partitions[1].ref) |> IO.inspect(label: :dump)
-
-    assert [^counter] = Buffer.dequeue(buffer, 1, limit: 4000)
-  end
-
-  test "enqueue/2 routes to partitions", %{test: test} do
-    buffer = Buffer.new(test, partition_count: 2)
-
-    assert {:ok, 1} = Buffer.enqueue(buffer, %{object: :alice})
-    assert {:ok, 2} = Buffer.enqueue(buffer, %{object: :bob})
-    assert {:ok, 1} = Buffer.enqueue(buffer, %{object: :alice})
-  end
-
-  test "a custom hash_by/1 function can be supplied for routing", %{test: test} do
-    partition_count = 2
-    dummy_hash_by = fn _ -> 1 end
-    # phash always returns 0 for dummy hash return, so always first partition is chosen
-    assert :erlang.phash2(1, partition_count) == 0
-
-    buffer = Buffer.new(test, partition_count: partition_count, hash_by: dummy_hash_by)
-
-    for _ <- 1..10 do
-      assert {:ok, 1} = Buffer.enqueue(buffer, :crypto.strong_rand_bytes(10))
+      assert_raise RuntimeError,
+                   "Buffer TestBuffer already exists",
+                   fn ->
+                     Buffer.new(TestBuffer, partition_count: 2)
+                   end
     end
   end
 
-  test "enqueue/2 works when only buffer_name is provided", %{test: test} do
-    buffer = Buffer.new(test, partition_count: 1)
-    assert {:ok, 1} = Buffer.enqueue(buffer.name, %{object: :alice})
+  describe "buffer info" do
+    test "info!/1 retrieves buffer", %{test: test} do
+      assert buffer = Buffer.new(test)
+      assert ^buffer = Buffer.info!(test)
+    end
+
+    test "info/2 optionally retrieves only buffer meta", %{test: test} do
+      Buffer.new(test)
+      assert %Buffer{} = buffer = Buffer.info!(test, only: :buffer_meta)
+      assert buffer.partition_count == System.schedulers_online()
+      refute map_size(buffer.private) == 0
+    end
   end
 
-  test "enqueue/2 fails when memory threshold is reached", %{test: test} do
-    canonical = Buffer.new(:canonical, partition_count: 1)
+  describe "mode: any" do
+    test "enqueue/2 bumps read/reserve locations", %{test: test} do
+      buffer = Buffer.new(test, partition_count: 1)
 
-    canonical_initial_size =
-      :ets.info(canonical.private.partitions[1].ref, :memory) * :erlang.system_info(:wordsize)
+      name = buffer.name
 
-    threshold = canonical_initial_size + 1500
+      buffer = Buffer.info!(name)
+      assert buffer.private.partitions[1].read_loc == 0
+      assert buffer.private.partitions[1].write_loc == 0
+      assert buffer.private.partitions[1].reserve_loc == 0
+      assert buffer.private.partitions[1].size == 0
 
-    buffer = Buffer.new(test, partition_count: 1, total_memory_threshold: threshold)
+      assert {:ok, 1} = Buffer.enqueue(buffer, %{object: :alice})
 
-    assert {:ok, _} = Buffer.enqueue(buffer, %{object: :smol1})
+      buffer = Buffer.info!(name)
+      assert buffer.private.partitions[1].read_loc == 0
+      assert buffer.private.partitions[1].write_loc == 1
+      assert buffer.private.partitions[1].reserve_loc == 1
+    end
 
-    filler = generate_term(1500)
+    test "enqueue/2 routes to partitions", %{test: test} do
+      buffer = Buffer.new(test, partition_count: 2)
 
-    assert {:ok, _} = Buffer.enqueue(buffer, filler)
+      assert {:ok, 1} = Buffer.enqueue(buffer, %{object: :alice})
+      assert {:ok, 2} = Buffer.enqueue(buffer, %{object: :bob})
+      assert {:ok, 1} = Buffer.enqueue(buffer, %{object: :alice})
+    end
 
-    assert {:error, :threshold_reached} = Buffer.enqueue(buffer, %{object: :smol2})
+    test "a custom hash_by/1 function can be supplied for routing", %{test: test} do
+      partition_count = 2
+      dummy_hash_by = fn _ -> 1 end
+      # phash always returns 0 for dummy hash return, so always first partition is chosen
+      assert :erlang.phash2(1, partition_count) == 0
+
+      buffer = Buffer.new(test, partition_count: partition_count, hash_by: dummy_hash_by)
+
+      for _ <- 1..10 do
+        assert {:ok, 1} = Buffer.enqueue(buffer, :crypto.strong_rand_bytes(10))
+      end
+    end
+
+    test "enqueue/2 works when only buffer_name is provided", %{test: test} do
+      buffer = Buffer.new(test, partition_count: 1)
+      assert {:ok, 1} = Buffer.enqueue(buffer.name, %{object: :alice})
+    end
+
+    test "enqueue/2 won't work with buffer mode: any and a counter", %{test: test} do
+      buffer = Buffer.new(test, partition_count: 1)
+
+      assert_raise RuntimeError,
+                   ~r/^Cannot enqueue counters.*/,
+                   fn ->
+                     Buffer.enqueue(buffer.name, Buffer.Counter.new(bucket: 1024))
+                   end
+    end
+
+    test "enqueue/2 fails when memory threshold is reached", %{test: test} do
+      canonical = Buffer.new(:canonical, partition_count: 1)
+
+      canonical_initial_size =
+        :ets.info(canonical.private.partitions[1].ref, :memory) * :erlang.system_info(:wordsize)
+
+      threshold = canonical_initial_size + 1500
+
+      buffer = Buffer.new(test, partition_count: 1, total_memory_threshold: threshold)
+
+      assert {:ok, _} = Buffer.enqueue(buffer, %{object: :smol1})
+
+      filler = generate_term(1500)
+
+      assert {:ok, _} = Buffer.enqueue(buffer, filler)
+
+      assert {:error, :threshold_reached} = Buffer.enqueue(buffer, %{object: :smol2})
+    end
+
+    test "dequeue/2 gets first item(s) and deletes them", %{test: test} do
+      buffer = Buffer.new(test, partition_count: 1)
+      {:ok, _} = Buffer.enqueue(buffer, :foo)
+      {:ok, _} = Buffer.enqueue(buffer, :foobar)
+      {:ok, _} = Buffer.enqueue(buffer, :foobaz)
+
+      assert [:foo] = Buffer.dequeue(buffer, 1)
+      assert length(:ets.tab2list(buffer.private.partitions[1].ref)) == 2
+      assert [:foobar, :foobaz] = Buffer.dequeue(buffer, 1, limit: 3)
+      assert length(:ets.tab2list(buffer.private.partitions[1].ref)) == 0
+    end
+
+    test "dequeue/2 returns empty list if no entries written", %{test: test} do
+      buffer = Buffer.new(test, partition_count: 1)
+      assert Buffer.dequeue(buffer, 1) == []
+    end
+
+    test "dequeue/2 works when only buffer_name is provided", %{test: test} do
+      buffer = Buffer.new(test, partition_count: 1)
+      assert {:ok, 1} = Buffer.enqueue(buffer.name, %{object: :alice})
+      assert [%{object: :alice}] = Buffer.dequeue(buffer.name, 1)
+    end
   end
 
-  test "dequeue/2 gets first item(s) and deletes them", %{test: test} do
-    buffer = Buffer.new(test, partition_count: 1)
-    {:ok, _} = Buffer.enqueue(buffer, :foo)
-    {:ok, _} = Buffer.enqueue(buffer, :foobar)
-    {:ok, _} = Buffer.enqueue(buffer, :foobaz)
+  describe "mode: counters" do
+    test "counters accumulate over bucket and data", %{test: test} do
+      buffer = Buffer.new(test, partition_count: 1, mode: :counters)
+      c1 = Buffer.Counter.new(bucket: 1024, data: {:counter1, 1024})
+      c2 = Buffer.Counter.new(bucket: 1025, data: {:counter2, 1025})
+      c3 = Buffer.Counter.new(bucket: 4096, data: {:counter3, 4096})
+      c4 = Buffer.Counter.new(bucket: 4096, data: {:counter4, 4096})
 
-    assert [:foo] = Buffer.dequeue(buffer, 1)
-    assert length(:ets.tab2list(buffer.private.partitions[1].ref)) == 2
-    assert [:foobar, :foobaz] = Buffer.dequeue(buffer, 1, limit: 3)
-    assert length(:ets.tab2list(buffer.private.partitions[1].ref)) == 0
-  end
+      assert {:ok, 1} = Buffer.enqueue(buffer, c1)
+      assert {:ok, 1} = Buffer.enqueue(buffer, c1)
+      assert {:ok, 1} = Buffer.enqueue(buffer, c1)
 
-  test "dequeue/2 returns empty list if no entries written", %{test: test} do
-    buffer = Buffer.new(test, partition_count: 1)
-    assert Buffer.dequeue(buffer, 1) == []
-  end
+      assert {:ok, 1} = Buffer.enqueue(buffer, c2)
+      assert {:ok, 1} = Buffer.enqueue(buffer, c3)
 
-  test "dequeue/2 works when only buffer_name is provided", %{test: test} do
-    buffer = Buffer.new(test, partition_count: 1)
-    assert {:ok, 1} = Buffer.enqueue(buffer.name, %{object: :alice})
-    assert [%{object: :alice}] = Buffer.dequeue(buffer.name, 1)
+      assert {:ok, 1} = Buffer.enqueue(buffer, c1)
+      assert {:ok, 1} = Buffer.enqueue(buffer, c2)
+
+      assert {:ok, 1} = Buffer.enqueue(buffer, c4)
+
+      assert [
+               {4, {:counter1, 1024}},
+               {2, {:counter2, 1025}},
+               {1, {:counter3, 4096}},
+               {1, {:counter4, 4096}}
+             ] = Buffer.dequeue(buffer, 1, limit: 4096)
+    end
   end
 
   describe "telemetry events" do
